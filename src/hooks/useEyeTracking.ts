@@ -71,7 +71,6 @@ export const useEyeTracking = (): TrackingData => {
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const requestRef = useRef<number>(0);
   const eyesClosedStartTime = useRef<number | null>(null);
-  const hasTriggeredIntentionalBlink = useRef<boolean>(false);
   const lastMouseTime = useRef<number>(0);
 
   // Fallback / Hardware Eye Tracker support: Mouse tracking

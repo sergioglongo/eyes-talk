@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import type { TrackingData } from '../hooks/useEyeTracking';
 
