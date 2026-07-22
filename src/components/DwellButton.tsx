@@ -21,7 +21,7 @@ export const DwellButton = ({
   disabled = false,
   onHoverStateChange
 }: DwellButtonProps) => {
-  const { cursor, isIntentionalBlink, calibration } = useTrackingContext();
+  const { cursor, isIntentionalBlink, isPaused, calibration } = useTrackingContext();
   const allowBlink = calibration.selectionMethod !== 'DWELL';
   const allowDwell = calibration.selectionMethod !== 'BLINK';
 
@@ -33,7 +33,7 @@ export const DwellButton = ({
 
   // Check if virtual cursor is over the button (runs in ALL modes)
   useEffect(() => {
-    if (disabled) {
+    if (disabled || isPaused) {
       if (isHovered) {
         setIsHovered(false);
         onHoverStateChange?.(false);

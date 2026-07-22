@@ -28,12 +28,43 @@ const GlobalEscapeHandler = () => {
 
 // Global UI Overlays (Cursor and Back Button)
 const GlobalUI = () => {
-  const { cursor } = useTrackingContext();
+  const { cursor, isPaused, togglePause } = useTrackingContext();
   const location = useLocation();
   const navigate = useNavigate();
 
   return (
     <>
+      {/* Pause / Rest Mode Overlay Banner */}
+      {isPaused && (
+        <div 
+          onClick={togglePause}
+          style={{
+            position: 'fixed',
+            top: '1.2rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(239, 68, 68, 0.95)',
+            color: '#ffffff',
+            padding: '0.8rem 2.2rem',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            boxShadow: '0 0 25px rgba(239, 68, 68, 0.8)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.8rem',
+            cursor: 'pointer',
+            border: '2px solid #ffffff'
+          }}
+        >
+          <span>⏸️ MODO PAUSA / DESCANSO ACTIVADO</span>
+          <span style={{ fontSize: '0.95rem', opacity: 0.9, background: 'rgba(0,0,0,0.2)', padding: '0.3rem 0.6rem', borderRadius: '4px' }}>
+            Pestañea 3 veces rápidas para reanudar
+          </span>
+        </div>
+      )}
+
       {/* Floating Back Button */}
       {location.pathname !== '/' && location.pathname !== '/look' && location.pathname !== '/t9' && location.pathname !== '/settings' && location.pathname !== '/calibration' && location.pathname !== '/calibrate' && (
         <DwellButton 
@@ -54,7 +85,7 @@ const GlobalUI = () => {
         </DwellButton>
       )}
 
-      {/* Visual Cursor Dot (hidden during calibration to avoid distraction/head strain) */}
+      {/* Visual Cursor Dot */}
       {location.pathname !== '/calibration' && location.pathname !== '/calibrate' && (
         <div 
           style={{
@@ -63,13 +94,14 @@ const GlobalUI = () => {
             top: `${cursor.y * 100}vh`,
             width: '22px',
             height: '22px',
-            background: 'var(--accent-hover)',
-            border: '2px solid #ffffff',
+            background: isPaused ? 'rgba(239, 68, 68, 0.5)' : 'var(--accent-hover)',
+            border: isPaused ? '2px solid #ef4444' : '2px solid #ffffff',
             borderRadius: '50%',
             transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none', // Critical so it doesn't block hover
+            pointerEvents: 'none',
             zIndex: 99999,
-            boxShadow: '0 0 15px rgba(96, 165, 250, 0.9)'
+            boxShadow: isPaused ? '0 0 10px rgba(239, 68, 68, 0.5)' : '0 0 15px rgba(96, 165, 250, 0.9)',
+            opacity: isPaused ? 0.6 : 1
           }}
         />
       )}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { playChime } from '../utils/audio';
 
 export type TrackingDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'CENTER';
 export type TrackingMode = 'HEAD' | 'GAZE';
@@ -31,6 +32,8 @@ export interface TrackingData {
   isBlinking: boolean;
   isIntentionalBlink: boolean; // Triggered when closing eyes for configured duration
   isEyesClosedLong: boolean; // For 3-second escape
+  isPaused: boolean; // Pause/Rest mode triggered by 3 quick blinks
+  togglePause: () => void;
   isReady: boolean;
   calibration: CalibrationData;
   saveCalibration: (newCalib: CalibrationData) => void;
@@ -62,6 +65,10 @@ export const useEyeTracking = (): TrackingData => {
   const [isBlinking, setIsBlinking] = useState(false);
   const [isIntentionalBlink, setIsIntentionalBlink] = useState(false);
   const [isEyesClosedLong, setIsEyesClosedLong] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const recentBlinksRef = useRef<number[]>([]);
+  const togglePause = useCallback(() => setIsPaused(prev => !prev), []);
   
   const [calibration, setCalibration] = useState<CalibrationData>(() => {
     const saved = localStorage.getItem('eyes_talk_calibration');
@@ -208,7 +215,20 @@ export const useEyeTracking = (): TrackingData => {
           } else {
             if (eyesClosedStartTime.current) {
               const duration = Date.now() - eyesClosedStartTime.current;
-              if (duration >= minBlinkMs && duration <= maxBlinkMs && !isEyesClosedLong) {
+              
+              // Triple-Blink Detection (3 quick blinks under 600ms each within 1.5s window)
+              if (duration >= 100 && duration <= 650) {
+                const now = Date.now();
+                recentBlinksRef.current = [...recentBlinksRef.current.filter(t => now - t < 1500), now];
+                
+                if (recentBlinksRef.current.length >= 3) {
+                  recentBlinksRef.current = [];
+                  setIsPaused(prev => !prev);
+                  playChime();
+                }
+              }
+
+              if (!isPaused && duration >= minBlinkMs && duration <= maxBlinkMs && !isEyesClosedLong) {
                 setIsIntentionalBlink(true);
                 setTimeout(() => setIsIntentionalBlink(false), 50);
               }
@@ -218,7 +238,8 @@ export const useEyeTracking = (): TrackingData => {
           }
 
           // --- Tracking Logic (HEAD vs GAZE) ---
-          if (Date.now() - lastMouseTime.current > 2000) {
+          // Freeze cursor and skip pointer updates when app is paused
+          if (!isPaused && Date.now() - lastMouseTime.current > 2000) {
             let rawX = 0.5;
             let rawY = 0.5;
 
@@ -314,6 +335,8 @@ export const useEyeTracking = (): TrackingData => {
     isBlinking,
     isIntentionalBlink,
     isEyesClosedLong,
+    isPaused,
+    togglePause,
     isReady,
     calibration,
     saveCalibration,
