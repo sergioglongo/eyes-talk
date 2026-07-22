@@ -1,37 +1,108 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { DwellButton } from '../components/DwellButton';
 import { useTTS } from '../hooks/useTTS';
-import { Settings, Delete, Trash2 } from 'lucide-react';
+import { useTrackingContext } from '../context/TrackingContext';
+import { playChime } from '../utils/audio';
+import { Settings, Delete, Trash2, X, ArrowLeft, Volume2, Pause, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { safeNavigate } from '../utils/navigation';
 
-const T9_KEYS = [
+const MAIN_T9_KEYS = [
   { id: '1', chars: '.,!?' }, { id: '2', chars: 'ABC' }, { id: '3', chars: 'DEF' },
   { id: '4', chars: 'GHI' }, { id: '5', chars: 'JKL' }, { id: '6', chars: 'MNO' },
-  { id: '7', chars: 'PQRS' }, { id: '8', chars: 'TUV' }, { id: '9', chars: 'WXYZ' },
-  { id: 'SPACE', chars: 'ESPACIO' }, { id: 'DEL_SPLIT', chars: 'DELETE_SECTION' }, { id: 'SPEAK', chars: 'HABLAR' }
+  { id: '7', chars: 'PQRS' }, { id: '8', chars: 'TUV' }, { id: '9', chars: 'WXYZ' }
 ];
 
 const T9Mode = () => {
   const [text, setText] = useState('');
   const { speak } = useTTS();
+  const { calibration } = useTrackingContext();
   const navigate = useNavigate();
 
-  // Basic Multi-tap logic
+  const t9InputMode = calibration.t9InputMode || 'EXTENDED_WINDOW';
+  const showPauseButton = calibration.selectionMethod !== 'BLINK'; // Only show PAUSE if DWELL is active
+
+  // Pause / Rest state
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  // Submenu overlay state (Mode 2)
+  const [activeSubmenuKey, setActiveSubmenuKey] = useState<typeof MAIN_T9_KEYS[0] | null>(null);
+  const [isModalOpening, setIsModalOpening] = useState<boolean>(false);
+  const isCooldownRef = useRef<boolean>(false);
+
+  // Multi-tap state (Mode 1)
   const [lastPress, setLastPress] = useState<{ id: string, time: number, charIndex: number } | null>(null);
 
-  const handleKeyPress = (key: typeof T9_KEYS[0]) => {
-    if (key.id === 'SPACE') {
-      setText(t => t + ' ');
-      return;
+  // Carousel continuous state (Mode 3)
+  const [activeCarouselState, setActiveCarouselState] = useState<{ keyId: string; chars: string; index: number } | null>(null);
+
+  const MULTI_TAP_TIMEOUT = t9InputMode === 'EXTENDED_WINDOW' ? 3500 : 1500;
+
+  // Handle continuous rotation in CAROUSEL MODE
+  useEffect(() => {
+    let interval: number;
+
+    if (t9InputMode === 'CAROUSEL' && activeCarouselState && !isPaused) {
+      interval = window.setInterval(() => {
+        setActiveCarouselState(prev => {
+          if (!prev) return null;
+          const nextIndex = (prev.index + 1) % prev.chars.length;
+          const nextChar = prev.chars[nextIndex];
+          
+          // Replace last character in text
+          setText(t => t.slice(0, -1) + nextChar);
+          playChime();
+          
+          return { ...prev, index: nextIndex };
+        });
+      }, 850); // Rotates every 850ms continuously while staying on key
     }
-    if (key.id === 'SPEAK') {
-      if (text.trim()) speak(text);
+
+    return () => clearInterval(interval);
+  }, [t9InputMode, activeCarouselState, isPaused]);
+
+  const handleKeyHoverState = (keyId: string, isHovered: boolean) => {
+    if (!isHovered && activeCarouselState?.keyId === keyId) {
+      // User moved cursor away from the key! Lock current letter and stop carousel
+      setActiveCarouselState(null);
+    }
+  };
+
+  const openSubmenu = (key: typeof MAIN_T9_KEYS[0]) => {
+    if (isPaused) return;
+    setActiveSubmenuKey(key);
+    setIsModalOpening(true);
+    setTimeout(() => {
+      setIsModalOpening(false);
+    }, 600);
+  };
+
+  const handleKeyPress = (key: typeof MAIN_T9_KEYS[0]) => {
+    if (isCooldownRef.current || isPaused) return;
+
+    // MODE 2: SUBMENU MODE
+    if (t9InputMode === 'SUBMENU') {
+      if (key.chars.length === 1) {
+        setText(t => t + key.chars);
+      } else {
+        openSubmenu(key);
+      }
       return;
     }
 
+    // MODE 3: CAROUSEL MODE (Start continuous rotation)
+    if (t9InputMode === 'CAROUSEL') {
+      const firstChar = key.chars[0];
+      setText(t => t + firstChar);
+      if (key.chars.length > 1) {
+        setActiveCarouselState({ keyId: key.id, chars: key.chars, index: 0 });
+      }
+      return;
+    }
+
+    // MODE 1: EXTENDED WINDOW (Default Multi-Tap)
     const now = Date.now();
-    if (lastPress && lastPress.id === key.id && now - lastPress.time < 1500) {
+    if (lastPress && lastPress.id === key.id && now - lastPress.time < MULTI_TAP_TIMEOUT) {
       // Rotate character
       const nextIndex = (lastPress.charIndex + 1) % key.chars.length;
       setText(t => t.slice(0, -1) + key.chars[nextIndex]);
@@ -43,118 +114,412 @@ const T9Mode = () => {
     }
   };
 
+  const handleSpace = () => {
+    if (isCooldownRef.current || isPaused) return;
+    setActiveCarouselState(null);
+    setText(t => t + ' ');
+  };
+
+  const handleSpeakText = () => {
+    if (isCooldownRef.current || isPaused) return;
+    setActiveCarouselState(null);
+    if (text.trim()) speak(text);
+  };
+
+  // Submenu character selection
+  const handleSubmenuCharSelect = (char: string) => {
+    if (isModalOpening || isPaused) return;
+    setText(t => t + char);
+    closeSubmenu();
+  };
+
+  const closeSubmenu = () => {
+    isCooldownRef.current = true;
+    setActiveSubmenuKey(null);
+    setIsModalOpening(false);
+    setTimeout(() => {
+      isCooldownRef.current = false;
+    }, 500);
+  };
+
   const deleteChar = () => {
+    if (isCooldownRef.current || isPaused) return;
+    setActiveCarouselState(null);
     setText(t => t.slice(0, -1));
   };
 
   const clearAllText = () => {
+    if (isCooldownRef.current || isPaused) return;
+    setActiveCarouselState(null);
     setText('');
   };
 
   const quickSpeak = (phrase: string) => {
+    if (isCooldownRef.current || isPaused) return;
+    setActiveCarouselState(null);
     speak(phrase);
   };
 
+  const isModalOpen = !!activeSubmenuKey;
+  const isButtonsDisabled = isModalOpen || isPaused;
+
+  const modeBadgeText = t9InputMode === 'EXTENDED_WINDOW' ? '⏱️ Ext' : t9InputMode === 'SUBMENU' ? '🔤 Menú' : '🔄 Carrusel';
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '1rem', gap: '1rem' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0 0.75rem 0.75rem 0.75rem', gap: '0.6rem', position: 'relative' }}>
       
-      {/* Top Action Bar */}
-      <div style={{ display: 'flex', gap: '0.5rem', height: '60px' }}>
-        <DwellButton onClick={() => quickSpeak('Sí')} style={{ flex: 1, background: 'var(--success)' }}>
+      {/* Top Action Bar (Flush to top) */}
+      <div style={{ display: 'flex', gap: '0.5rem', minHeight: '85px', margin: 0, borderBottom: '2px solid var(--bg-tertiary)' }}>
+        
+        {/* Integrated Back Button */}
+        <DwellButton 
+          disabled={isButtonsDisabled} 
+          onClick={() => safeNavigate(navigate, '/')} 
+          style={{ 
+            flex: '1.2', 
+            borderRadius: 0,
+            background: 'var(--bg-tertiary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.4rem',
+            fontSize: '1.2rem',
+            fontWeight: 'bold'
+          }}
+        >
+          <ArrowLeft size={28} /> Volver
+        </DwellButton>
+
+        {/* Quick Responses */}
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Sí')} style={{ flex: '1.2', borderRadius: 0, background: 'var(--success)', fontSize: '1.4rem', fontWeight: 'bold' }}>
           SÍ
         </DwellButton>
-        <DwellButton onClick={() => quickSpeak('No')} style={{ flex: 1, background: 'var(--danger)' }}>
+
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('No')} style={{ flex: '1.2', borderRadius: 0, background: 'var(--danger)', fontSize: '1.4rem', fontWeight: 'bold' }}>
           NO
         </DwellButton>
-        <DwellButton onClick={() => quickSpeak('Estoy escribiendo')} style={{ flex: 2 }}>
+
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Estoy escribiendo')} style={{ flex: '2', borderRadius: 0, fontSize: '1.2rem', fontWeight: 'bold' }}>
           Estoy escribiendo
         </DwellButton>
-        <DwellButton onClick={() => quickSpeak('Necesito ayuda')} style={{ flex: 2, background: 'var(--warning)', color: '#000' }}>
+
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Necesito ayuda')} style={{ flex: '2', borderRadius: 0, background: 'var(--warning)', color: '#000', fontSize: '1.2rem', fontWeight: 'bold' }}>
           Necesito ayuda
         </DwellButton>
-        <DwellButton onClick={() => safeNavigate(navigate, '/settings')} style={{ width: '60px' }}>
-          <Settings />
+
+        {/* Settings Button with Mode Indicator Badge */}
+        <DwellButton 
+          disabled={isButtonsDisabled} 
+          onClick={() => safeNavigate(navigate, '/settings')} 
+          style={{ 
+            flex: '1.4', 
+            borderRadius: 0,
+            background: 'var(--bg-secondary)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.2rem',
+            padding: '0.2rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1.1rem', fontWeight: 'bold' }}>
+            <Settings size={22} /> Ajustes
+          </div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent-hover)', fontWeight: 'bold' }}>
+            ({modeBadgeText})
+          </span>
+        </DwellButton>
+
+      </div>
+
+      {/* Text Display Bar with Double-Width Full-Height LIMPIAR Button */}
+      <div style={{ 
+        flex: '0 0 90px', 
+        background: 'var(--bg-secondary)', 
+        borderRadius: 'var(--radius-md)', 
+        display: 'flex',
+        alignItems: 'center',
+        border: '2px solid var(--bg-tertiary)',
+        overflow: 'hidden'
+      }}>
+        {/* Written Text */}
+        <div style={{ flex: 1, padding: '0.8rem 1.2rem', fontSize: '2.2rem', fontWeight: 'bold', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+          {text || <span style={{ color: 'var(--text-secondary)', fontWeight: 'normal' }}>Tu texto aparecerá aquí...</span>}
+        </div>
+        
+        {/* Integrated Double-Width LIMPIAR Button (260px minWidth) */}
+        <DwellButton 
+          disabled={isButtonsDisabled}
+          onClick={clearAllText}
+          style={{
+            height: '100%',
+            minWidth: '260px',
+            borderRadius: 0,
+            borderLeft: '3px solid var(--bg-tertiary)',
+            background: 'rgba(239, 68, 68, 0.45)',
+            fontSize: '1.4rem',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.6rem'
+          }}
+        >
+          <Trash2 size={28} />
+          <span>LIMPIAR</span>
         </DwellButton>
       </div>
 
-      {/* Text Display */}
-      <div style={{ 
-        flex: '0 0 100px', 
-        background: 'var(--bg-secondary)', 
-        borderRadius: 'var(--radius-md)', 
-        padding: '1rem',
-        fontSize: '2rem',
-        display: 'flex',
-        alignItems: 'center',
-        border: '2px solid var(--bg-tertiary)'
-      }}>
-        {text || <span style={{ color: 'var(--text-secondary)' }}>Tu texto aparecerá aquí...</span>}
-      </div>
+      {/* PAUSE / REST MODE OVERLAY MODAL */}
+      {isPaused && (
+        <div style={{ 
+          position: 'absolute',
+          top: '185px',
+          left: '1rem',
+          right: '1rem',
+          bottom: '1rem',
+          background: 'rgba(15, 23, 42, 0.96)',
+          backdropFilter: 'blur(16px)',
+          borderRadius: 'var(--radius-md)',
+          zIndex: 2000,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem',
+          border: '3px solid var(--warning)',
+          boxShadow: '0 0 50px rgba(245, 158, 11, 0.3)',
+          textAlign: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', color: 'var(--warning)', marginBottom: '1rem' }}>
+            <Pause size={48} />
+            <h2 style={{ fontSize: '2.5rem', margin: 0 }}>TECLADO EN REPOSO</h2>
+          </div>
+          <p style={{ fontSize: '1.4rem', color: 'var(--text-secondary)', maxWidth: '600px', marginBottom: '2.5rem' }}>
+            Puedes descansar la mirada a gusto. Los botones están congelados para que no se active nada sin querer.
+          </p>
 
-      {/* T9 Grid */}
+          <DwellButton
+            onClick={() => setIsPaused(false)}
+            style={{
+              padding: '1.5rem 3rem',
+              fontSize: '2rem',
+              fontWeight: 'bold',
+              background: 'var(--success)',
+              color: '#ffffff',
+              borderRadius: 'var(--radius-md)',
+              border: '3px solid var(--accent-hover)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              boxShadow: '0 0 30px var(--success)'
+            }}
+          >
+            <Play size={40} /> REANUDAR ESCRITURA
+          </DwellButton>
+        </div>
+      )}
+
+      {/* Mode 2: SUBMENU Overlay Modal */}
+      {activeSubmenuKey && !isPaused && (
+        <div style={{ 
+          position: 'absolute',
+          top: '185px',
+          left: '1rem',
+          right: '1rem',
+          bottom: '1rem',
+          background: 'rgba(15, 23, 42, 0.98)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: 'var(--radius-md)',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '1.5rem',
+          border: '3px solid var(--accent-hover)',
+          boxShadow: '0 0 40px rgba(0,0,0,0.8)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ fontSize: '2rem', color: 'var(--accent-hover)', margin: 0 }}>
+              Selecciona una letra para Tecla {activeSubmenuKey.id}
+            </h2>
+            <DwellButton 
+              disabled={isModalOpening}
+              onClick={closeSubmenu}
+              style={{ background: 'var(--bg-tertiary)', padding: '0.5rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem' }}
+            >
+              <X size={24} /> Volver
+            </DwellButton>
+          </div>
+
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${activeSubmenuKey.chars.length}, 1fr)`, gap: '1rem' }}>
+            {activeSubmenuKey.chars.split('').map((char) => (
+              <DwellButton
+                key={char}
+                disabled={isModalOpening}
+                onClick={() => handleSubmenuCharSelect(char)}
+                style={{
+                  fontSize: '5rem',
+                  fontWeight: 'bold',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--accent-primary)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '2px solid var(--accent-hover)'
+                }}
+              >
+                {char}
+              </DwellButton>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main T9 Number Keys Grid (3 columns x 3 rows) */}
       <div style={{ 
         flex: 1, 
         display: 'grid', 
         gridTemplateColumns: 'repeat(3, 1fr)', 
-        gridTemplateRows: 'repeat(4, 1fr)', 
+        gridTemplateRows: 'repeat(3, 1fr)', 
         gap: '0.5rem' 
       }}>
-        {T9_KEYS.map((key) => {
-          if (key.id === 'DEL_SPLIT') {
-            return (
-              <div key={key.id} style={{ display: 'flex', gap: '0.25rem' }}>
-                <DwellButton 
-                  onClick={deleteChar}
-                  style={{ 
-                    flex: 1, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    justifyContent: 'center', 
-                    alignItems: 'center',
-                    background: 'rgba(239, 68, 68, 0.2)',
-                    fontSize: '1.1rem'
-                  }}
-                >
-                  <Delete size={22} />
-                  <span>Borrar</span>
-                </DwellButton>
-                
-                <DwellButton 
-                  onClick={clearAllText}
-                  style={{ 
-                    flex: 1, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    justifyContent: 'center', 
-                    alignItems: 'center',
-                    background: 'rgba(239, 68, 68, 0.4)',
-                    fontSize: '1.1rem'
-                  }}
-                >
-                  <Trash2 size={22} />
-                  <span>Limpiar</span>
-                </DwellButton>
-              </div>
-            );
-          }
+        {MAIN_T9_KEYS.map((key) => {
+          const isCarouselActive = activeCarouselState?.keyId === key.id;
+          const activeCharIndex = isCarouselActive ? activeCarouselState.index : -1;
 
           return (
             <DwellButton 
               key={key.id} 
+              disabled={isButtonsDisabled}
               onClick={() => handleKeyPress(key)}
-              style={{ fontSize: '1.5rem', display: 'flex', flexDirection: 'column' }}
+              onHoverStateChange={(isHovered) => handleKeyHoverState(key.id, isHovered)}
+              style={{ 
+                fontSize: '1.5rem', 
+                display: 'flex', 
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '0.2rem',
+                border: isCarouselActive ? '3px solid var(--warning)' : undefined,
+                boxShadow: isCarouselActive ? '0 0 25px var(--warning)' : undefined
+              }}
             >
-              {['SPACE', 'SPEAK'].includes(key.id) ? (
-                <span>{key.chars}</span>
-              ) : (
-                <>
-                  <b style={{ fontSize: '2rem' }}>{key.id}</b>
-                  <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{key.chars}</span>
-                </>
-              )}
+              <b style={{ fontSize: '2.5rem', color: isCarouselActive ? 'var(--warning)' : undefined, lineHeight: 1 }}>
+                {key.id}
+              </b>
+              
+              {/* Larger letters with dynamic carousel character highlighting */}
+              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                {key.chars.split('').map((char, idx) => {
+                  const isCharActive = idx === activeCharIndex;
+                  return (
+                    <span
+                      key={idx}
+                      style={{
+                        fontSize: isCharActive ? '1.8rem' : '1.45rem',
+                        fontWeight: '800',
+                        color: isCharActive ? 'var(--warning)' : isCarouselActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        textShadow: isCharActive ? '0 0 12px var(--warning)' : 'none',
+                        transform: isCharActive ? 'scale(1.25)' : 'scale(1)',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {char}
+                    </span>
+                  );
+                })}
+              </div>
+
             </DwellButton>
           );
         })}
+      </div>
+
+      {/* Dedicated Bottom Action Row: Conditional grid depending on showPauseButton */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: showPauseButton ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', 
+        gap: '0.5rem', 
+        minHeight: '95px' 
+      }}>
+        
+        {/* 1. ESPACIO */}
+        <DwellButton 
+          disabled={isButtonsDisabled}
+          onClick={handleSpace}
+          style={{ 
+            fontSize: '1.4rem', 
+            fontWeight: 'bold', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            background: 'var(--bg-secondary)',
+            borderRadius: 'var(--radius-md)'
+          }}
+        >
+          <span>ESPACIO</span>
+        </DwellButton>
+
+        {/* 2. BORRAR */}
+        <DwellButton 
+          disabled={isButtonsDisabled}
+          onClick={deleteChar}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: '0.5rem',
+            background: 'rgba(239, 68, 68, 0.3)',
+            fontSize: '1.3rem',
+            fontWeight: 'bold',
+            borderRadius: 'var(--radius-md)'
+          }}
+        >
+          <Delete size={26} />
+          <span>BORRAR</span>
+        </DwellButton>
+
+        {/* 3. PAUSAR (Only shown if selection method includes DWELL/Time) */}
+        {showPauseButton && (
+          <DwellButton 
+            disabled={isModalOpen}
+            onClick={() => setIsPaused(true)} 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              gap: '0.5rem',
+              background: 'var(--warning)',
+              color: '#000',
+              fontSize: '1.3rem',
+              fontWeight: 'bold',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            <Pause size={28} />
+            <span>PAUSAR</span>
+          </DwellButton>
+        )}
+
+        {/* 4. HABLAR */}
+        <DwellButton 
+          disabled={isButtonsDisabled}
+          onClick={handleSpeakText}
+          style={{ 
+            fontSize: '1.4rem', 
+            fontWeight: 'bold', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            gap: '0.5rem',
+            background: 'var(--accent-primary)',
+            color: 'white',
+            borderRadius: 'var(--radius-md)'
+          }}
+        >
+          <Volume2 size={28} />
+          <span>HABLAR</span>
+        </DwellButton>
+
       </div>
 
     </div>

@@ -5,6 +5,8 @@ export type TrackingDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'CENTER';
 export type TrackingMode = 'HEAD' | 'GAZE';
 export type SelectionMethod = 'DWELL' | 'BLINK' | 'BOTH';
 
+export type T9InputMode = 'EXTENDED_WINDOW' | 'SUBMENU' | 'CAROUSEL';
+
 export interface CalibrationData {
   centerRawX: number;
   centerRawY: number;
@@ -15,6 +17,7 @@ export interface CalibrationData {
   speechRate: number; // 0.5 to 1.5
   speechVolume: number; // 0.1 to 1.0
   selectedVoiceURI: string; // Voice URI or name
+  t9InputMode: T9InputMode;
 }
 
 export interface TrackingData {
@@ -39,6 +42,7 @@ const DEFAULT_CALIBRATION: CalibrationData = {
   speechRate: 1.0, // Default to normal speed (1.0x)
   speechVolume: 1.0, // Default to 100% volume
   selectedVoiceURI: '', // Default to auto-detected Spanish voice
+  t9InputMode: 'EXTENDED_WINDOW', // Default to extended window multi-tap
 };
 
 export const useEyeTracking = (): TrackingData => {

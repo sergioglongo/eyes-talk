@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTrackingContext } from '../context/TrackingContext';
 import { usePhrases } from '../hooks/usePhrases';
 import { useTTS } from '../hooks/useTTS';
-import { Trash2, Plus, RefreshCw, Edit2, Check, X, AlertCircle, Bookmark, MoveRight, Volume2, Mic } from 'lucide-react';
+import { type T9InputMode } from '../hooks/useEyeTracking';
+import { Trash2, Plus, RefreshCw, Edit2, Check, X, AlertCircle, Bookmark, MoveRight, Volume2, Mic, Keyboard } from 'lucide-react';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -36,6 +37,10 @@ const Settings = () => {
 
   const handleSelectionMethodChange = (selectionMethod: 'DWELL' | 'BLINK' | 'BOTH') => {
     saveCalibration({ ...calibration, selectionMethod });
+  };
+
+  const handleT9InputModeChange = (t9InputMode: T9InputMode) => {
+    saveCalibration({ ...calibration, t9InputMode });
   };
 
   const handleBlinkDurationChange = (delta: number) => {
@@ -221,6 +226,68 @@ const Settings = () => {
         >
           🔊 Probar Voz Ahora
         </button>
+      </div>
+
+      {/* T9 Input Mode Selection */}
+      <div style={{ background: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '2px solid var(--bg-tertiary)' }}>
+        <h2 style={{ marginBottom: '0.5rem', color: 'var(--accent-hover)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Keyboard size={24} /> Modo de Escritura para Teclado T9
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+          Elige el método preferido para seleccionar letras secundarias (ej: B o C en la tecla 2-ABC).
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+          <button 
+            onClick={() => handleT9InputModeChange('EXTENDED_WINDOW')}
+            style={{ 
+              padding: '1rem', 
+              background: (calibration.t9InputMode || 'EXTENDED_WINDOW') === 'EXTENDED_WINDOW' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              border: (calibration.t9InputMode || 'EXTENDED_WINDOW') === 'EXTENDED_WINDOW' ? '2px solid var(--accent-hover)' : 'none',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>⏱️ Ventana Extendida (3.5s)</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Multi-tap clásico con mayor tiempo de tolerancia entre miradas.</span>
+          </button>
+
+          <button 
+            onClick={() => handleT9InputModeChange('SUBMENU')}
+            style={{ 
+              padding: '1rem', 
+              background: calibration.t9InputMode === 'SUBMENU' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              border: calibration.t9InputMode === 'SUBMENU' ? '2px solid var(--accent-hover)' : 'none',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>🔤 Desplegable de Letras</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Muestra botones gigantes flotantes para cada letra al activar la tecla.</span>
+          </button>
+
+          <button 
+            onClick={() => handleT9InputModeChange('CAROUSEL')}
+            style={{ 
+              padding: '1rem', 
+              background: calibration.t9InputMode === 'CAROUSEL' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              border: calibration.t9InputMode === 'CAROUSEL' ? '2px solid var(--accent-hover)' : 'none',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            <span style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>🔄 Carrusel Automático</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Rotación continua de letras cada 1s mientras mantengas la mirada fija.</span>
+          </button>
+        </div>
       </div>
 
       {/* Dedicated Tabbed Phrase & Page Management */}

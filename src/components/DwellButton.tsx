@@ -10,6 +10,7 @@ interface DwellButtonProps {
   className?: string;
   style?: React.CSSProperties;
   disabled?: boolean;
+  onHoverStateChange?: (isHovered: boolean) => void;
 }
 
 export const DwellButton = ({ 
@@ -18,7 +19,8 @@ export const DwellButton = ({
   dwellTime = 1500, 
   className = '', 
   style = {},
-  disabled = false
+  disabled = false,
+  onHoverStateChange
 }: DwellButtonProps) => {
   const { cursor, isIntentionalBlink, calibration } = useTrackingContext();
   const allowBlink = calibration.selectionMethod !== 'DWELL';
@@ -32,7 +34,10 @@ export const DwellButton = ({
   // Check if virtual cursor is over the button (runs in ALL modes)
   useEffect(() => {
     if (disabled) {
-      setIsHovered(false);
+      if (isHovered) {
+        setIsHovered(false);
+        onHoverStateChange?.(false);
+      }
       setProgress(0);
       return;
     }
@@ -51,11 +56,13 @@ export const DwellButton = ({
 
     if (inside && !isHovered) {
       setIsHovered(true);
+      onHoverStateChange?.(true);
     } else if (!inside && isHovered) {
       setIsHovered(false);
+      onHoverStateChange?.(false);
       setProgress(0);
     }
-  }, [cursor, disabled, isHovered]);
+  }, [cursor, disabled, isHovered, onHoverStateChange]);
 
   // Handle Intentional Blink selection
   useEffect(() => {
@@ -80,7 +87,6 @@ export const DwellButton = ({
         setProgress(prev => {
           const next = prev + (UPDATE_INTERVAL / dwellTime) * 100;
           if (next >= 100) {
-            setIsHovered(false);
             return 100;
           }
           return next;

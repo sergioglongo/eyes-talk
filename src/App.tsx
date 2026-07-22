@@ -34,8 +34,8 @@ const GlobalUI = () => {
 
   return (
     <>
-      {/* Floating Back Button (hidden on Home and LookMode which has its integrated back bar) */}
-      {location.pathname !== '/' && location.pathname !== '/look' && (
+      {/* Floating Back Button (hidden on Home, LookMode, and T9Mode which have integrated back bars) */}
+      {location.pathname !== '/' && location.pathname !== '/look' && location.pathname !== '/t9' && (
         <DwellButton 
           onClick={() => safeNavigate(navigate, '/')}
           dwellTime={1500}
