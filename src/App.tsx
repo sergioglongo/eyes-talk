@@ -34,34 +34,60 @@ const GlobalUI = () => {
 
   return (
     <>
-      {/* Pause / Rest Mode Overlay Banner */}
+      {/* Pause / Rest Mode Overlay Banner (Centered, Large & Prominent) */}
       {isPaused && (
         <div 
           onClick={togglePause}
           style={{
             position: 'fixed',
-            top: '1.2rem',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(239, 68, 68, 0.95)',
-            color: '#ffffff',
-            padding: '0.8rem 2.2rem',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            boxShadow: '0 0 25px rgba(239, 68, 68, 0.8)',
-            zIndex: 999999,
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15, 23, 42, 0.85)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
             alignItems: 'center',
-            gap: '0.8rem',
+            zIndex: 999999,
             cursor: 'pointer',
-            border: '2px solid #ffffff'
+            padding: '2rem'
           }}
         >
-          <span>⏸️ MODO PAUSA / DESCANSO ACTIVADO</span>
-          <span style={{ fontSize: '0.95rem', opacity: 0.9, background: 'rgba(0,0,0,0.2)', padding: '0.3rem 0.6rem', borderRadius: '4px' }}>
-            Pestañea 3 veces rápidas para reanudar
-          </span>
+          <div style={{
+            background: 'var(--bg-secondary)',
+            border: '4px solid var(--danger)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '3rem 4rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '1.5rem',
+            boxShadow: '0 0 50px rgba(239, 68, 68, 0.6)',
+            textAlign: 'center',
+            maxWidth: '750px'
+          }}>
+            <div style={{ fontSize: '4.5rem', margin: 0, lineHeight: 1 }}>⏸️</div>
+            <h1 style={{ fontSize: '3rem', color: '#ffffff', margin: 0, fontWeight: '900' }}>
+              MODO PAUSA / DESCANSO
+            </h1>
+            <p style={{ fontSize: '1.5rem', color: 'var(--text-secondary)', margin: 0 }}>
+              El puntero y la selección por mirada están suspendidos.
+            </p>
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.2)',
+              border: '2px solid var(--danger)',
+              color: '#ffffff',
+              padding: '0.9rem 2rem',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '1.4rem',
+              fontWeight: 'bold',
+              marginTop: '0.5rem'
+            }}>
+              👁️ Pestañea 3 veces rápidas (o haz clic aquí) para reanudar
+            </div>
+          </div>
         </div>
       )}
 
