@@ -12,12 +12,14 @@ import {
   deleteCustomWordDB, 
   clearCustomWordsBySourceDB,
   bulkImportWordsDB,
+  exportFullBackupZip,
+  importFullBackupZip,
   type CustomWordItem 
 } from '../services/db';
 import { 
   Trash2, Plus, RefreshCw, Edit2, Check, X, AlertCircle, Bookmark, 
   MoveRight, Volume2, Mic, Keyboard, Settings as SettingsIcon, Sliders, 
-  Target, Eye, Brain, Upload, Search, BookOpen, ArrowLeft
+  Target, Eye, Brain, Upload, Search, BookOpen, ArrowLeft, Download, HardDrive
 } from 'lucide-react';
 
 const Settings = () => {
@@ -37,6 +39,52 @@ const Settings = () => {
   const [wordSearchQuery, setWordSearchQuery] = useState('');
   const [wordSuccessMsg, setWordSuccessMsg] = useState<string | null>(null);
   const [wordErrorMsg, setWordErrorMsg] = useState<string | null>(null);
+
+  // Backup State
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+
+  const handleExportBackup = async () => {
+    try {
+      setBackupMsg(null);
+      setBackupError(null);
+      const zipBlob = await exportFullBackupZip();
+      const url = URL.createObjectURL(zipBlob);
+      
+      const dateStr = new Date().toISOString().split('T')[0];
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `eyes_talk_backup_${dateStr}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setBackupMsg('🎉 ¡Copia de seguridad compacta descargada exitosamente en archivo ZIP!');
+    } catch (e) {
+      console.error('Error exporting backup:', e);
+      setBackupError('Error al exportar la copia de seguridad en formato ZIP.');
+    }
+  };
+
+  const handleImportBackupFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setBackupMsg(null);
+      setBackupError(null);
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const res = await importFullBackupZip(file);
+      setBackupMsg(`🎉 ¡Copia de seguridad restaurada! Se importaron ${res.phrasesCount} frases, ${res.wordsCount} palabras predictivas${res.hasCalibration ? ' y tu configuración de seguimiento' : ''}.`);
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (e: any) {
+      console.error('Error importing backup:', e);
+      setBackupError(`Error al procesar el archivo de copia de seguridad: ${e.message || 'Formato no válido.'}`);
+    }
+  };
 
   // Active Selected Page Tab (1 to 6) in Phrase Manager
   const [selectedPageTab, setSelectedPageTab] = useState<number>(1);
@@ -631,6 +679,76 @@ const Settings = () => {
                   <div style={{ fontSize: '1rem', fontWeight: 'bold' }}>🔄 Carrusel</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Rotación continua 0.8s</div>
                 </button>
+              </div>
+            </div>
+
+            {/* Backup & Data Migration Card */}
+            <div style={{ background: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '2px solid var(--accent-hover)' }}>
+              <h2 style={{ marginBottom: '0.5rem', color: 'var(--accent-hover)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.4rem' }}>
+                <HardDrive size={24} /> Copia de Seguridad y Migración
+              </h2>
+              <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', marginBottom: '1.2rem' }}>
+                Guarda una copia compacta y empaquetada en formato de archivo comprimido **.ZIP** con todas tus frases, vocabulario predictivo aprendido y calibración para trasvasarlo a otro navegador o computadora.
+              </p>
+
+              {backupMsg && (
+                <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid var(--success)', color: 'var(--success)', padding: '0.8rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 'bold' }}>
+                  {backupMsg}
+                </div>
+              )}
+
+              {backupError && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid var(--danger)', color: 'var(--danger)', padding: '0.8rem 1rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', fontSize: '0.95rem' }}>
+                  {backupError}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <button
+                  onClick={handleExportBackup}
+                  style={{
+                    padding: '0.9rem 1rem',
+                    background: 'var(--accent-primary)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#ffffff',
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.6rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Download size={22} /> Exportar Backup (ZIP)
+                </button>
+
+                <label
+                  style={{
+                    padding: '0.9rem 1rem',
+                    background: 'var(--bg-tertiary)',
+                    border: '2px dashed var(--accent-hover)',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#ffffff',
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.6rem',
+                    cursor: 'pointer',
+                    textAlign: 'center'
+                  }}
+                >
+                  <Upload size={22} /> Importar Backup (ZIP/JSON)
+                  <input 
+                    type="file" 
+                    accept=".zip,.json" 
+                    onChange={handleImportBackupFile} 
+                    style={{ display: 'none' }} 
+                  />
+                </label>
               </div>
             </div>
           </div>

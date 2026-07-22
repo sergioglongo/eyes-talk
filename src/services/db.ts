@@ -1,4 +1,5 @@
 import { openDB, type IDBPDatabase, type DBSchema } from 'idb';
+import JSZip from 'jszip';
 
 export interface PhraseItem {
   id: string;
@@ -352,4 +353,144 @@ export const bulkImportWordsDB = async (rawText: string): Promise<number> => {
 
   await tx.done;
   return addedCount;
+};
+
+// --- BACKUP & RESTORE METHODS ---
+export interface BackupData {
+  version: number;
+  exportedAt: string;
+  calibration?: any;
+  phrases: PhraseItem[];
+  pageNames: Record<number, string>;
+  customWords: CustomWordItem[];
+}
+
+export const exportFullBackupDB = async (): Promise<BackupData> => {
+  const db = await initDB();
+  const phrases = await db.getAll('phrases');
+  const pageNamesRaw = await db.getAll('page_names');
+  const customWords = await db.getAll('custom_words');
+
+  const pageNames: Record<number, string> = {};
+  pageNamesRaw.forEach(item => {
+    pageNames[item.pageNumber] = item.name;
+  });
+
+  let calibration = null;
+  const savedCalib = localStorage.getItem('eyes_talk_calibration');
+  if (savedCalib) {
+    try {
+      calibration = JSON.parse(savedCalib);
+    } catch (e) {}
+  }
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    calibration,
+    phrases,
+    pageNames,
+    customWords,
+  };
+};
+
+export const importFullBackupDB = async (data: any): Promise<{ phrasesCount: number; wordsCount: number; hasCalibration: boolean }> => {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Archivo de copia de seguridad no válido.');
+  }
+
+  const db = await initDB();
+
+  // 1. Import Calibration
+  let hasCalibration = false;
+  if (data.calibration && typeof data.calibration === 'object') {
+    localStorage.setItem('eyes_talk_calibration', JSON.stringify(data.calibration));
+    hasCalibration = true;
+  }
+
+  // 2. Import Phrases
+  let phrasesCount = 0;
+  if (Array.isArray(data.phrases) && data.phrases.length > 0) {
+    const tx = db.transaction('phrases', 'readwrite');
+    for (const p of data.phrases) {
+      if (p && p.id && p.text) {
+        await tx.store.put({
+          id: p.id,
+          text: p.text,
+          page: p.page || 1,
+          category: p.category,
+          usageCount: p.usageCount || 0,
+          createdAt: p.createdAt || Date.now(),
+        });
+        phrasesCount++;
+      }
+    }
+    await tx.done;
+  }
+
+  // 3. Import Page Names
+  if (data.pageNames && typeof data.pageNames === 'object') {
+    const tx = db.transaction('page_names', 'readwrite');
+    for (const [pageStr, name] of Object.entries(data.pageNames)) {
+      const pageNumber = parseInt(pageStr, 10);
+      if (!isNaN(pageNumber) && typeof name === 'string') {
+        await tx.store.put({ pageNumber, name });
+      }
+    }
+    await tx.done;
+  }
+
+  // 4. Import Custom Words
+  let wordsCount = 0;
+  if (Array.isArray(data.customWords) && data.customWords.length > 0) {
+    const tx = db.transaction('custom_words', 'readwrite');
+    for (const w of data.customWords) {
+      if (w && w.word) {
+        await tx.store.put({
+          id: w.id || `cword_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          word: w.word,
+          source: w.source || 'MANUAL',
+          createdAt: w.createdAt || Date.now(),
+        });
+        wordsCount++;
+      }
+    }
+    await tx.done;
+  }
+
+  return { phrasesCount, wordsCount, hasCalibration };
+};
+
+export const exportFullBackupZip = async (): Promise<Blob> => {
+  const backupData = await exportFullBackupDB();
+  const jsonStr = JSON.stringify(backupData, null, 2);
+
+  const zip = new JSZip();
+  zip.file("eyes_talk_backup.json", jsonStr);
+
+  return await zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+    compressionOptions: { level: 9 }
+  });
+};
+
+export const importFullBackupZip = async (file: File): Promise<{ phrasesCount: number; wordsCount: number; hasCalibration: boolean }> => {
+  if (file.name.endsWith('.json')) {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    return await importFullBackupDB(parsed);
+  }
+
+  const zip = new JSZip();
+  const unzipped = await zip.loadAsync(file);
+  
+  const jsonFile = unzipped.file("eyes_talk_backup.json") || Object.values(unzipped.files).find(f => f.name.endsWith('.json'));
+  if (!jsonFile) {
+    throw new Error('El archivo ZIP no contiene una copia de seguridad válida de Eyes Talk (eyes_talk_backup.json).');
+  }
+
+  const jsonText = await jsonFile.async("text");
+  const parsedData = JSON.parse(jsonText);
+  return await importFullBackupDB(parsedData);
 };
