@@ -43,11 +43,21 @@ export const useTTS = () => {
       }
     }
 
-    // Fallback if no specific voice selected: Find first Spanish voice
+    // Fallback if no specific voice selected: Find Microsoft Elena or es-AR voice first
     if (!utterance.voice) {
-      const spanishVoice = availableVoices.find(v => v.lang.startsWith('es'));
-      if (spanishVoice) {
-        utterance.voice = spanishVoice;
+      const elenaOrArgVoice = availableVoices.find(v => 
+        v.name.toLowerCase().includes('elena') || 
+        v.lang.toLowerCase() === 'es-ar' || 
+        v.lang.toLowerCase().replace('_', '-').startsWith('es-ar')
+      );
+
+      if (elenaOrArgVoice) {
+        utterance.voice = elenaOrArgVoice;
+      } else {
+        const spanishVoice = availableVoices.find(v => v.lang.startsWith('es'));
+        if (spanishVoice) {
+          utterance.voice = spanishVoice;
+        }
       }
     }
 

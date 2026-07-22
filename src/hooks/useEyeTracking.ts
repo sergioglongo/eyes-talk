@@ -43,13 +43,13 @@ const DEFAULT_CALIBRATION: CalibrationData = {
   maxRawX: 0.7,
   minRawY: 0.3,
   maxRawY: 0.7,
-  sensitivity: 3.5,
-  mode: 'HEAD', // Default to HEAD tracking for reliable webcam testing
-  selectionMethod: 'BOTH', // Default to BOTH (Dwell or Blink)
+  sensitivity: 2.0, // Default pointer sensitivity: 2.0
+  mode: 'HEAD', // Default to HEAD tracking (Movimiento de Cabeza)
+  selectionMethod: 'BLINK', // Default to BLINK selection (Pestañeo)
   blinkDuration: 0.4,
   speechRate: 1.0, // Default to normal speed (1.0x)
   speechVolume: 1.0, // Default to 100% volume
-  selectedVoiceURI: '', // Default to auto-detected Spanish voice
+  selectedVoiceURI: '', // Auto-detects Microsoft Elena / es-AR Spanish voice
   t9InputMode: 'PREDICTIVE', // Default to Predictive T9 1-Tap mode
 };
 
