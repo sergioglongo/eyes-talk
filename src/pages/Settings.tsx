@@ -150,6 +150,12 @@ const Settings = () => {
     saveCalibration({ ...calibration, enablePauseGesture: enabled });
   };
 
+  const handleTripleBlinkWindowChange = (delta: number) => {
+    const current = calibration.tripleBlinkWindow || 1.5;
+    const newWin = Math.max(0.8, Math.min(4.0, parseFloat((current + delta).toFixed(2))));
+    saveCalibration({ ...calibration, tripleBlinkWindow: newWin });
+  };
+
   const handleSpeechRateChange = (delta: number) => {
     const current = calibration.speechRate ?? 1.0;
     const newRate = Math.max(0.5, Math.min(1.5, Number((current + delta).toFixed(1))));
@@ -479,6 +485,21 @@ const Settings = () => {
                     🚫 Deshabilitado
                   </button>
                 </div>
+
+                {calibration.enablePauseGesture !== false && (
+                  <div style={{ marginTop: '0.8rem' }}>
+                    <h4 style={{ fontSize: '0.95rem', marginBottom: '0.3rem', color: 'var(--text-secondary)' }}>
+                      Ventana de Tiempo Máxima para los 3 Pestañeos
+                    </h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <button onClick={() => handleTripleBlinkWindowChange(-0.25)} style={{ width: '40px', height: '40px', fontSize: '1.2rem', background: 'var(--bg-tertiary)' }}>-</button>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>
+                        {calibration.tripleBlinkWindow || 1.5}s
+                      </span>
+                      <button onClick={() => handleTripleBlinkWindowChange(0.25)} style={{ width: '40px', height: '40px', fontSize: '1.2rem', background: 'var(--bg-tertiary)' }}>+</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
