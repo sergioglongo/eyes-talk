@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { flushSync } from 'react-dom';
 import { useTrackingContext } from '../context/TrackingContext';
 import { playChime } from '../utils/audio';
 
@@ -71,9 +70,7 @@ export const DwellButton = ({
       lastClickTimeRef.current = Date.now();
       setProgress(0);
       playChime();
-      flushSync(() => {
-        onClick();
-      });
+      onClick();
     }
   }, [isIntentionalBlink, allowBlink, isHovered, onClick, disabled]);
 
@@ -104,9 +101,7 @@ export const DwellButton = ({
     if (progress >= 100) {
       setProgress(0);
       playChime();
-      flushSync(() => {
-        onClick();
-      });
+      onClick();
     }
   }, [progress, onClick]);
 
@@ -136,10 +131,12 @@ export const DwellButton = ({
             position: 'absolute',
             bottom: 0,
             left: 0,
-            height: '6px',
-            background: 'var(--accent-primary)',
+            height: '7px',
+            background: '#FACC15',
+            boxShadow: '0 0 12px #FACC15',
             width: `${progress}%`,
-            transition: 'width 0.1s linear'
+            transition: 'width 0.1s linear',
+            zIndex: 5
           }}
         />
       )}

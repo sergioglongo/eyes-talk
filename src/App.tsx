@@ -34,8 +34,8 @@ const GlobalUI = () => {
 
   return (
     <>
-      {/* Floating Back Button (hidden on Home, LookMode, and T9Mode which have integrated back bars) */}
-      {location.pathname !== '/' && location.pathname !== '/look' && location.pathname !== '/t9' && (
+      {/* Floating Back Button */}
+      {location.pathname !== '/' && location.pathname !== '/look' && location.pathname !== '/t9' && location.pathname !== '/settings' && location.pathname !== '/calibration' && location.pathname !== '/calibrate' && (
         <DwellButton 
           onClick={() => safeNavigate(navigate, '/')}
           dwellTime={1500}
@@ -55,20 +55,21 @@ const GlobalUI = () => {
       )}
 
       {/* Visual Cursor Dot (hidden during calibration to avoid distraction/head strain) */}
-      {location.pathname !== '/calibrate' && (
+      {location.pathname !== '/calibration' && location.pathname !== '/calibrate' && (
         <div 
           style={{
             position: 'fixed',
             left: `${cursor.x * 100}vw`,
             top: `${cursor.y * 100}vh`,
-            width: '20px',
-            height: '20px',
+            width: '22px',
+            height: '22px',
             background: 'var(--accent-hover)',
+            border: '2px solid #ffffff',
             borderRadius: '50%',
             transform: 'translate(-50%, -50%)',
             pointerEvents: 'none', // Critical so it doesn't block hover
-            zIndex: 1000,
-            boxShadow: '0 0 10px rgba(96, 165, 250, 0.8)'
+            zIndex: 99999,
+            boxShadow: '0 0 15px rgba(96, 165, 250, 0.9)'
           }}
         />
       )}
@@ -87,6 +88,7 @@ function App() {
           <Route path="/look" element={<LookMode />} />
           <Route path="/t9" element={<T9Mode />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/calibration" element={<Calibration />} />
           <Route path="/calibrate" element={<Calibration />} />
         </Routes>
       </div>
