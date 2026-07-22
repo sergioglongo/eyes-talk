@@ -85,8 +85,8 @@ const GlobalUI = () => {
         </DwellButton>
       )}
 
-      {/* Visual Cursor Dot */}
-      {location.pathname !== '/calibration' && location.pathname !== '/calibrate' && (
+      {/* Visual Cursor Dot (completely hidden when paused or in calibration) */}
+      {location.pathname !== '/calibration' && location.pathname !== '/calibrate' && !isPaused && (
         <div 
           style={{
             position: 'fixed',
@@ -94,14 +94,13 @@ const GlobalUI = () => {
             top: `${cursor.y * 100}vh`,
             width: '22px',
             height: '22px',
-            background: isPaused ? 'rgba(239, 68, 68, 0.5)' : 'var(--accent-hover)',
-            border: isPaused ? '2px solid #ef4444' : '2px solid #ffffff',
+            background: 'var(--accent-hover)',
+            border: '2px solid #ffffff',
             borderRadius: '50%',
             transform: 'translate(-50%, -50%)',
             pointerEvents: 'none',
             zIndex: 99999,
-            boxShadow: isPaused ? '0 0 10px rgba(239, 68, 68, 0.5)' : '0 0 15px rgba(96, 165, 250, 0.9)',
-            opacity: isPaused ? 0.6 : 1
+            boxShadow: '0 0 15px rgba(96, 165, 250, 0.9)'
           }}
         />
       )}

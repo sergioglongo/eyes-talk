@@ -142,8 +142,12 @@ const Settings = () => {
 
   const handleBlinkDurationChange = (delta: number) => {
     const current = calibration.blinkDuration || 0.4;
-    const newDur = Math.max(0.2, Math.min(0.8, Number((current + delta).toFixed(2))));
+    const newDur = Math.max(0.15, Math.min(1.5, parseFloat((current + delta).toFixed(2))));
     saveCalibration({ ...calibration, blinkDuration: newDur });
+  };
+
+  const handlePauseGestureToggle = (enabled: boolean) => {
+    saveCalibration({ ...calibration, enablePauseGesture: enabled });
   };
 
   const handleSpeechRateChange = (delta: number) => {
@@ -442,6 +446,40 @@ const Settings = () => {
                   </div>
                 </div>
               )}
+
+              <div style={{ marginTop: '1.2rem' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '0.4rem' }}>Gesto de Modo Pausa / Descanso (3 Pestañeos)</h3>
+                <div style={{ display: 'flex', gap: '0.8rem' }}>
+                  <button 
+                    onClick={() => handlePauseGestureToggle(true)}
+                    style={{ 
+                      flex: 1, 
+                      padding: '0.8rem', 
+                      background: calibration.enablePauseGesture !== false ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                      border: calibration.enablePauseGesture !== false ? '2px solid var(--accent-hover)' : 'none',
+                      fontSize: '0.95rem',
+                      fontWeight: 'bold',
+                      borderRadius: 'var(--radius-md)'
+                    }}
+                  >
+                    ⏸️ Habilitado
+                  </button>
+                  <button 
+                    onClick={() => handlePauseGestureToggle(false)}
+                    style={{ 
+                      flex: 1, 
+                      padding: '0.8rem', 
+                      background: calibration.enablePauseGesture === false ? 'var(--danger)' : 'var(--bg-tertiary)',
+                      border: calibration.enablePauseGesture === false ? '2px solid var(--danger)' : 'none',
+                      fontSize: '0.95rem',
+                      fontWeight: 'bold',
+                      borderRadius: 'var(--radius-md)'
+                    }}
+                  >
+                    🚫 Deshabilitado
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

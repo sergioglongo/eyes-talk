@@ -23,6 +23,7 @@ export interface CalibrationData {
   speechVolume: number; // 0.1 to 1.0
   selectedVoiceURI: string; // Voice URI or name
   t9InputMode: T9InputMode;
+  enablePauseGesture: boolean; // Enable 3-blink gesture for rest mode
 }
 
 export interface TrackingData {
@@ -54,6 +55,7 @@ const DEFAULT_CALIBRATION: CalibrationData = {
   speechVolume: 1.0, // Default to 100% volume
   selectedVoiceURI: '', // Auto-detects Microsoft Elena / es-AR Spanish voice
   t9InputMode: 'PREDICTIVE', // Default to Predictive T9 1-Tap mode
+  enablePauseGesture: true, // Enabled by default
 };
 
 export const useEyeTracking = (): TrackingData => {
@@ -216,8 +218,8 @@ export const useEyeTracking = (): TrackingData => {
             if (eyesClosedStartTime.current) {
               const duration = Date.now() - eyesClosedStartTime.current;
               
-              // Triple-Blink Detection (3 quick blinks under 600ms each within 1.5s window)
-              if (duration >= 100 && duration <= 650) {
+              // Triple-Blink Detection (3 quick blinks under 650ms each within 1.5s window)
+              if (calibration.enablePauseGesture !== false && duration >= 100 && duration <= 650) {
                 const now = Date.now();
                 recentBlinksRef.current = [...recentBlinksRef.current.filter(t => now - t < 1500), now];
                 
