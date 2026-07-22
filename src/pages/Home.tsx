@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTrackingContext } from '../context/TrackingContext';
 import { Settings as SettingsIcon, Eye, Keyboard } from 'lucide-react';
@@ -9,11 +9,15 @@ import { DwellButton } from '../components/DwellButton';
 const Home = () => {
   const navigate = useNavigate();
   const { cursor, direction, isReady, isIntentionalBlink, calibration } = useTrackingContext();
+  const mountTimeRef = useRef<number>(Date.now());
 
   const allowBlink = calibration.selectionMethod !== 'DWELL';
 
   // Spatial & Zone Selection via Intentional Blink or Head Tilt
   useEffect(() => {
+    // Ignore blinks during the first 600ms of page mount to prevent blink bleed from previous page
+    if (Date.now() - mountTimeRef.current < 600) return;
+
     if (allowBlink && isIntentionalBlink) {
       // Zone 3: Bottom Dock (y >= 85%) -> Configuración
       if (cursor.y >= 0.85) {

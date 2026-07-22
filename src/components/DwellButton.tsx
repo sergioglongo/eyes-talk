@@ -29,6 +29,7 @@ export const DwellButton = ({
   const [progress, setProgress] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const lastClickTimeRef = useRef<number>(0);
+  const mountTimeRef = useRef<number>(Date.now());
 
   // Check if virtual cursor is over the button (runs in ALL modes)
   useEffect(() => {
@@ -65,6 +66,9 @@ export const DwellButton = ({
 
   // Handle Intentional Blink selection
   useEffect(() => {
+    // Ignore blinks for 500ms after button mounts to prevent bleed from previous screen
+    if (Date.now() - mountTimeRef.current < 500) return;
+
     if (allowBlink && isIntentionalBlink && isHovered && !disabled) {
       if (Date.now() - lastClickTimeRef.current < 800) return;
       lastClickTimeRef.current = Date.now();
