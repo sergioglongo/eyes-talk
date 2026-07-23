@@ -111,3 +111,15 @@ body.pseudo-fullscreen #root {
 .text-center {
   text-align: center;
 }
+
+/* Hide native scrollbars while keeping scroll functionality (avoids the
+   scrollbar reserving/releasing space on every render, which reads as a
+   flickering "heartbeat" on small resolutions). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Old Edge/IE */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Edge, Opera */
+}

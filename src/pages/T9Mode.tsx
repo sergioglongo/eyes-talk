@@ -22,6 +22,7 @@ const T9Mode = () => {
   const { speak } = useTTS();
   const { calibration, saveCalibration } = useTrackingContext();
   const navigate = useNavigate();
+  const textDisplayRef = useRef<HTMLDivElement>(null);
 
   const t9InputMode: T9InputMode = calibration.t9InputMode || 'PREDICTIVE';
   const showPauseButton = calibration.selectionMethod !== 'BLINK'; // Only show PAUSE if DWELL is active
@@ -97,6 +98,16 @@ const T9Mode = () => {
 
     return () => clearInterval(interval);
   }, [t9InputMode, activeCarouselState, isPaused]);
+
+  // Keep the text display scrolled to the end (latest typed character) without
+  // ever showing a native scrollbar, which used to flicker the row height on
+  // small resolutions as content crossed the overflow threshold every render.
+  useEffect(() => {
+    const el = textDisplayRef.current;
+    if (el) {
+      el.scrollLeft = el.scrollWidth;
+    }
+  }, [text, t9Sequence]);
 
   const handleKeyHoverState = (keyId: string, isHovered: boolean) => {
     if (!isHovered && activeCarouselState?.keyId === keyId) {
@@ -267,7 +278,7 @@ const T9Mode = () => {
   const modeBadgeText = t9InputMode === 'PREDICTIVE' ? '🧠 Predictivo' : t9InputMode === 'EXTENDED_WINDOW' ? '⏱️ Extendido' : t9InputMode === 'SUBMENU' ? '🔤 Desplegable' : '🔄 Carrusel';
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0 0.75rem 0.75rem 0.75rem', gap: '0.5rem', position: 'relative' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0 0.75rem 0 0.75rem', gap: '0.5rem', position: 'relative' }}>
       
       {/* Top Action Bar (Flush to top) */}
       <div style={{ display: 'flex', gap: '0.5rem', minHeight: '85px', margin: 0, borderBottom: '2px solid var(--bg-tertiary)' }}>
@@ -356,18 +367,22 @@ const T9Mode = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           
           {/* Text Display Row (Reduced Height for more suggestion space) */}
-          <div style={{ 
-            height: t9InputMode === 'PREDICTIVE' ? '60px' : '85px', 
-            padding: '0.5rem 1rem', 
-            fontSize: t9InputMode === 'PREDICTIVE' ? '1.7rem' : '2rem', 
-            fontWeight: 'bold', 
-            overflowX: 'auto', 
-            whiteSpace: 'nowrap', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.8rem',
-            borderBottom: t9InputMode === 'PREDICTIVE' ? '1px solid var(--bg-tertiary)' : 'none'
-          }}>
+          <div
+            ref={textDisplayRef}
+            className="no-scrollbar"
+            style={{
+              height: t9InputMode === 'PREDICTIVE' ? '78px' : '85px',
+              padding: '0.5rem 1rem',
+              fontSize: t9InputMode === 'PREDICTIVE' ? '1.7rem' : '2rem',
+              fontWeight: 'bold',
+              overflowX: 'auto',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.8rem',
+              borderBottom: t9InputMode === 'PREDICTIVE' ? '1px solid var(--bg-tertiary)' : 'none'
+            }}
+          >
             <span>{text || <span style={{ color: 'var(--text-secondary)', fontWeight: 'normal' }}>Tu texto aparecerá aquí...</span>}</span>
             {t9Sequence && (
               <span style={{ 
@@ -386,8 +401,8 @@ const T9Mode = () => {
 
           {/* Taller Suggestion Row for 6 Candidate Words */}
           {t9InputMode === 'PREDICTIVE' && (
-            <div style={{ 
-              minHeight: '80px', 
+            <div style={{
+              minHeight: '80px',
               background: 'rgba(30, 41, 59, 0.95)',
               padding: '0.4rem 0.6rem',
               display: 'flex',
@@ -626,11 +641,11 @@ const T9Mode = () => {
       </div>
 
       {/* Dedicated Bottom Action Row: Conditional grid depending on showPauseButton */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: showPauseButton ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', 
-        gap: '0.5rem', 
-        minHeight: '95px' 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: showPauseButton ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+        gap: '0.5rem',
+        minHeight: '77px'
       }}>
         
         {/* 1. ESPACIO */}
