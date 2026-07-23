@@ -1,15 +1,9 @@
-import { startTransition } from 'react';
+import type { NavigateFunction } from 'react-router-dom';
 
-/**
- * Safe navigation utility using React 18 startTransition to guarantee
- * immediate DOM route re-renders during high-frequency camera tracking loops.
- */
-export const safeNavigate = (navigateFn: (path: string) => void, path: string) => {
-  startTransition(() => {
-    try {
-      navigateFn(path);
-    } catch (e) {
-      console.error('Error navigating:', e);
-    }
-  });
+export const safeNavigate = (navigateFn: NavigateFunction, path: string) => {
+  try {
+    navigateFn(path, { flushSync: true });
+  } catch (e) {
+    console.error('Error navigating:', e);
+  }
 };

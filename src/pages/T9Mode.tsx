@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { DwellButton } from '../components/DwellButton';
+import { FullscreenToggle } from '../components/FullscreenToggle';
 import { useTTS } from '../hooks/useTTS';
 import { useTrackingContext } from '../context/TrackingContext';
 import { playChime } from '../utils/audio';
 import { getT9Predictions, learnCustomWord } from '../services/t9Predictor';
-import { Delete, Trash2, X, ArrowLeft, Volume2, Pause, Play, Sparkles, RefreshCw } from 'lucide-react';
+import { Delete, Trash2, X, ArrowLeft, Volume2, Pause, Play, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { safeNavigate } from '../utils/navigation';
 import type { T9InputMode } from '../hooks/useEyeTracking';
@@ -291,24 +292,24 @@ const T9Mode = () => {
         </DwellButton>
 
         {/* Quick Responses */}
-        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Sí')} style={{ flex: '1.2', borderRadius: 0, background: 'var(--success)', fontSize: '1.4rem', fontWeight: 'bold' }}>
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Sí')} style={{ flex: '1', borderRadius: 0, background: 'var(--success)', fontSize: '1.4rem', fontWeight: 'bold' }}>
           SÍ
         </DwellButton>
 
-        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('No')} style={{ flex: '1.2', borderRadius: 0, background: 'var(--danger)', fontSize: '1.4rem', fontWeight: 'bold' }}>
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('No')} style={{ flex: '1', borderRadius: 0, background: 'var(--danger)', fontSize: '1.4rem', fontWeight: 'bold' }}>
           NO
         </DwellButton>
 
-        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Necesito ayuda')} style={{ flex: '2', borderRadius: 0, background: 'var(--warning)', color: '#000', fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <DwellButton disabled={isButtonsDisabled} onClick={() => quickSpeak('Necesito ayuda')} style={{ flex: '1.8', borderRadius: 0, background: 'var(--warning)', color: '#000', fontSize: '1.2rem', fontWeight: 'bold' }}>
           Necesito ayuda
         </DwellButton>
 
-        {/* TOGGLE T9 MODE BUTTON (Allows Alejandra to cycle modes independently on the fly!) */}
+        {/* TOGGLE T9 MODE BUTTON */}
         <DwellButton 
           disabled={isButtonsDisabled} 
           onClick={toggleT9InputMode} 
           style={{ 
-            flex: '1.8', 
+            flex: '1.6', 
             borderRadius: 0,
             background: 'var(--accent-primary)',
             color: 'white',
@@ -317,15 +318,14 @@ const T9Mode = () => {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.2rem',
-            padding: '0.3rem',
-            border: '3px solid var(--accent-hover)'
+            padding: '0.4rem'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.95rem', opacity: 0.9 }}>
-            <RefreshCw size={18} /> MODO T9:
+          <div style={{ fontSize: '0.9rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <Sparkles size={16} /> MODO T9
           </div>
           <span style={{ 
-            fontSize: '1.3rem', 
+            fontSize: '1.2rem', 
             fontWeight: '900', 
             color: '#FACC15', 
             textShadow: '0 0 12px rgba(250, 204, 21, 0.6)',
@@ -334,6 +334,11 @@ const T9Mode = () => {
             {modeBadgeText}
           </span>
         </DwellButton>
+
+        {/* Fullscreen Toggle (Top Right Corner - Full Height) */}
+        {calibration.showFullscreenButton && (
+          <FullscreenToggle style={{ minHeight: '85px', borderRadius: 0, borderTop: 'none', borderBottom: 'none', borderRight: 'none', borderLeft: '2px solid var(--bg-tertiary)', flex: '1.8' }} />
+        )}
 
       </div>
 

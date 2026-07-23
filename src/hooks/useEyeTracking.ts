@@ -25,6 +25,7 @@ export interface CalibrationData {
   t9InputMode: T9InputMode;
   enablePauseGesture: boolean; // Enable 3-blink gesture for rest mode
   tripleBlinkWindow: number; // Max time in seconds to complete 3 blinks (e.g. 1.5s)
+  showFullscreenButton: boolean; // Show fullscreen toggle (only useful with mouse-emulating devices, e.g. Tobii)
 }
 
 export interface TrackingData {
@@ -58,6 +59,7 @@ const DEFAULT_CALIBRATION: CalibrationData = {
   t9InputMode: 'PREDICTIVE', // Default to Predictive T9 1-Tap mode
   enablePauseGesture: true, // Enabled by default
   tripleBlinkWindow: 1.5, // Default window: 1.5 seconds for 3 blinks
+  showFullscreenButton: false, // Hidden by default (requestFullscreen needs a trusted mouse/keyboard event)
 };
 
 export const useEyeTracking = (): TrackingData => {

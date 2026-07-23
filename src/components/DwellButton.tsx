@@ -10,16 +10,18 @@ interface DwellButtonProps {
   style?: React.CSSProperties;
   disabled?: boolean;
   onHoverStateChange?: (isHovered: boolean) => void;
+  hoverScale?: number; // Scale applied on hover highlight (default 1.03). Lower it for tightly packed buttons to avoid visual collision with neighbors.
 }
 
-export const DwellButton = ({ 
-  onClick, 
-  children, 
-  dwellTime = 1500, 
-  className = '', 
+export const DwellButton = ({
+  onClick,
+  children,
+  dwellTime = 1500,
+  className = '',
   style = {},
   disabled = false,
-  onHoverStateChange
+  onHoverStateChange,
+  hoverScale = 1.03
 }: DwellButtonProps) => {
   const { cursor, isIntentionalBlink, isPaused, calibration } = useTrackingContext();
   const allowBlink = calibration.selectionMethod !== 'DWELL';
@@ -121,7 +123,7 @@ export const DwellButton = ({
         // High-contrast visual highlight when hovered by gaze/head cursor
         border: isHovered ? '3px solid var(--accent-hover)' : (style.border || '2px solid var(--bg-tertiary)'),
         boxShadow: isHovered ? '0 0 15px var(--accent-hover)' : 'none',
-        transform: isHovered ? 'scale(1.03)' : 'scale(1)',
+        transform: isHovered ? `scale(${hoverScale})` : 'scale(1)',
         transition: 'transform 0.15s ease, border 0.15s ease, box-shadow 0.15s ease',
       }}
       onClick={() => {

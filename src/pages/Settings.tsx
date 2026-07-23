@@ -5,6 +5,8 @@ import { usePhrases } from '../hooks/usePhrases';
 import { useTTS } from '../hooks/useTTS';
 import { safeNavigate } from '../utils/navigation';
 import { DwellButton } from '../components/DwellButton';
+import { FullscreenToggle } from '../components/FullscreenToggle';
+import { APP_VERSION, APP_BUILD_DATE } from '../config/version';
 import { type T9InputMode } from '../hooks/useEyeTracking';
 import { 
   getCustomWordsDB, 
@@ -220,6 +222,10 @@ const Settings = () => {
     saveCalibration({ ...calibration, selectedVoiceURI: voiceURI });
   };
 
+  const handleShowFullscreenButtonToggle = (enabled: boolean) => {
+    saveCalibration({ ...calibration, showFullscreenButton: enabled });
+  };
+
   // Phrases filtered for the selected page tab
   const currentTabPhrases = phrases.filter(p => (p.page || 1) === selectedPageTab);
 
@@ -291,30 +297,38 @@ const Settings = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderBottom: '2px solid var(--bg-tertiary)', paddingBottom: '1rem' }}>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
-          {/* Giant Integrated Back DwellButton */}
+          {/* Giant Taller Back DwellButton for Easy Eye Gaze Selection */}
           <DwellButton 
             onClick={() => safeNavigate(navigate, '/')}
             style={{ 
-              padding: '0.8rem 1.8rem', 
+              padding: '1.3rem 2.5rem', 
+              minHeight: '72px',
               background: 'var(--bg-tertiary)', 
               color: '#ffffff',
-              border: '2px solid var(--accent-hover)', 
+              border: '3px solid var(--accent-hover)', 
               borderRadius: 'var(--radius-md)', 
               display: 'flex', 
               alignItems: 'center', 
-              gap: '0.6rem', 
-              fontSize: '1.3rem', 
+              justifyContent: 'center',
+              gap: '0.8rem', 
+              fontSize: '1.45rem', 
               fontWeight: '900',
-              boxShadow: '0 0 15px rgba(0,0,0,0.3)'
+              boxShadow: '0 0 20px rgba(0,0,0,0.4)'
             }}
           >
-            <ArrowLeft size={28} /> VOLVER
+            <ArrowLeft size={34} /> VOLVER
           </DwellButton>
 
           <h1 style={{ margin: 0, color: 'var(--accent-hover)', display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '1.8rem' }}>
             <SettingsIcon size={32} /> Panel de Configuración
           </h1>
         </div>
+
+        {calibration.showFullscreenButton && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <FullscreenToggle style={{ minHeight: '72px', padding: '1.3rem 2rem' }} />
+          </div>
+        )}
 
         {/* Top Navigation Tabs */}
         <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.3rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-tertiary)' }}>
@@ -548,6 +562,43 @@ const Settings = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div style={{ marginTop: '1.2rem' }}>
+                <h3 style={{ fontSize: '1rem', marginBottom: '0.4rem' }}>Botón de Pantalla Completa</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+                  Oculto por defecto: la mirada y los parpateos no pueden activar pantalla completa nativa del navegador (requiere clic real). Habilitalo solo si usás un dispositivo que emula el mouse (ej. Tobii Eye Tracker).
+                </p>
+                <div style={{ display: 'flex', gap: '0.8rem' }}>
+                  <button
+                    onClick={() => handleShowFullscreenButtonToggle(true)}
+                    style={{
+                      flex: 1,
+                      padding: '0.8rem',
+                      background: calibration.showFullscreenButton ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                      border: calibration.showFullscreenButton ? '2px solid var(--accent-hover)' : 'none',
+                      fontSize: '0.95rem',
+                      fontWeight: 'bold',
+                      borderRadius: 'var(--radius-md)'
+                    }}
+                  >
+                    🖥️ Mostrar
+                  </button>
+                  <button
+                    onClick={() => handleShowFullscreenButtonToggle(false)}
+                    style={{
+                      flex: 1,
+                      padding: '0.8rem',
+                      background: !calibration.showFullscreenButton ? 'var(--danger)' : 'var(--bg-tertiary)',
+                      border: !calibration.showFullscreenButton ? '2px solid var(--danger)' : 'none',
+                      fontSize: '0.95rem',
+                      fontWeight: 'bold',
+                      borderRadius: 'var(--radius-md)'
+                    }}
+                  >
+                    🚫 Ocultar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1296,6 +1347,11 @@ const Settings = () => {
           </div>
         </div>
       )}
+
+      {/* Discreet Version & Build Date Footer */}
+      <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', opacity: 0.4, marginTop: '1rem', paddingBottom: '0.5rem', userSelect: 'none' }}>
+        Eyes Talk • v{APP_VERSION} ({APP_BUILD_DATE})
+      </div>
 
     </div>
   );

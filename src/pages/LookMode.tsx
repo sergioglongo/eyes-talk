@@ -7,6 +7,7 @@ import { playChime } from '../utils/audio';
 import { safeNavigate } from '../utils/navigation';
 import { type PhraseItem } from '../services/db';
 import { DwellButton } from '../components/DwellButton';
+import { FullscreenToggle } from '../components/FullscreenToggle';
 import { ChevronUp, ChevronDown, ArrowLeft, AlertTriangle } from 'lucide-react';
 
 const LookMode = () => {
@@ -159,7 +160,7 @@ const LookMode = () => {
       {/* Top Header Bar: Volver (1/8th) + SÍ + NO + Pág. Anterior */}
       <div style={{ display: 'flex', width: '100%', minHeight: '90px', background: 'var(--bg-secondary)', borderBottom: '3px solid var(--bg-tertiary)' }}>
         
-        {/* Integrated Back Button */}
+        {/* Back Button */}
         <DwellButton 
           onClick={() => safeNavigate(navigate, '/')}
           style={{ 
@@ -185,8 +186,8 @@ const LookMode = () => {
         <DwellButton 
           onClick={() => quickSpeak('Sí')}
           style={{ 
-            width: '14%', 
-            minWidth: '100px',
+            width: '12%', 
+            minWidth: '90px',
             minHeight: '90px', 
             borderRadius: 0,
             border: 'none',
@@ -207,8 +208,8 @@ const LookMode = () => {
         <DwellButton 
           onClick={() => quickSpeak('No')}
           style={{ 
-            width: '14%', 
-            minWidth: '100px',
+            width: '12%', 
+            minWidth: '90px',
             minHeight: '90px', 
             borderRadius: 0,
             border: 'none',
@@ -245,6 +246,11 @@ const LookMode = () => {
         >
           <ChevronUp size={44} /> {prevPageTitle} ({prevPageNum} / {totalPages})
         </DwellButton>
+
+        {/* Fullscreen Kiosk Mode Toggle (Top Right Corner - Full Height) */}
+        {calibration.showFullscreenButton && (
+          <FullscreenToggle style={{ minHeight: '90px', borderRadius: 0, borderTop: 'none', borderBottom: 'none', borderRight: 'none', borderLeft: '3px solid var(--bg-tertiary)', padding: '0 1.5rem' }} />
+        )}
 
       </div>
 
