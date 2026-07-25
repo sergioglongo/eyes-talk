@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTrackingContext } from '../context/TrackingContext';
+import { useTracking } from '../context/TrackingContext';
 import { usePhrases } from '../hooks/usePhrases';
 import { useTTS } from '../hooks/useTTS';
-import { safeNavigate } from '../utils/navigation';
+import { useAppNavigation } from '../hooks/useAppNavigation';
+import { ROUTES } from '../utils/routes';
 import { DwellButton } from '../components/DwellButton';
 import { FullscreenToggle } from '../components/FullscreenToggle';
 import { APP_VERSION, APP_BUILD_DATE } from '../config/version';
@@ -25,8 +25,8 @@ import {
 } from 'lucide-react';
 
 const Settings = () => {
-  const navigate = useNavigate();
-  const { calibration, saveCalibration } = useTrackingContext();
+  const { go, goHome } = useAppNavigation();
+  const { calibration, saveCalibration } = useTracking();
   const { phrases, pageNames, savePageName, addPhrase, updatePhrase, deletePhrase, resetDefaults } = usePhrases();
   const { speak, voices } = useTTS();
 
@@ -299,7 +299,7 @@ const Settings = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
           {/* Giant Taller Back DwellButton for Easy Eye Gaze Selection */}
           <DwellButton 
-            onClick={() => safeNavigate(navigate, '/')}
+            onClick={goHome}
             style={{ 
               padding: '1.3rem 2.5rem', 
               minHeight: '72px',
@@ -445,7 +445,7 @@ const Settings = () => {
               </div>
 
               <button 
-                onClick={() => navigate('/calibration')}
+                onClick={() => go(ROUTES.CALIBRATION)}
                 style={{ width: '100%', padding: '0.9rem', background: 'var(--accent-primary)', border: 'none', fontSize: '1.1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
               >
                 🎯 Iniciar Calibración de 5 Puntos

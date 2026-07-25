@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTrackingContext } from '../context/TrackingContext';
+import { useTracking, useCursor } from '../context/TrackingContext';
 import { useTTS } from '../hooks/useTTS';
 import { usePhrases } from '../hooks/usePhrases';
 import { playChime } from '../utils/audio';
-import { safeNavigate } from '../utils/navigation';
+import { useAppNavigation } from '../hooks/useAppNavigation';
 import { type PhraseItem } from '../services/db';
 import { DwellButton } from '../components/DwellButton';
 import { FullscreenToggle } from '../components/FullscreenToggle';
 import { ChevronUp, ChevronDown, ArrowLeft, AlertTriangle } from 'lucide-react';
 
 const LookMode = () => {
-  const navigate = useNavigate();
-  const { cursor, isIntentionalBlink, calibration } = useTrackingContext();
+  const { goHome } = useAppNavigation();
+  const { isIntentionalBlink, calibration } = useTracking();
+  const cursor = useCursor();
   const { speak } = useTTS();
   const { phrases, pageNames, loading, incrementUsage } = usePhrases();
   
@@ -162,7 +162,7 @@ const LookMode = () => {
         
         {/* Back Button */}
         <DwellButton 
-          onClick={() => safeNavigate(navigate, '/')}
+          onClick={goHome}
           style={{ 
             width: '12%', 
             minWidth: '100px',

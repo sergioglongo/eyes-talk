@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type RefObject } from 'react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { playChime } from '../utils/audio';
 
@@ -28,9 +28,17 @@ export interface CalibrationData {
   showFullscreenButton: boolean; // Show fullscreen toggle (only useful with mouse-emulating devices, e.g. Tobii)
 }
 
-export interface TrackingData {
-  cursor: { x: number; y: number }; // 0 to 1 relative to screen (calibrated)
-  rawGaze: { x: number; y: number }; // Uncalibrated raw values for calibration sampling
+export interface CursorPosition {
+  x: number; // 0 to 1 relative to screen (calibrated)
+  y: number;
+}
+
+/**
+ * Todo lo que cambia con poca frecuencia. Va en un contexto separado del cursor
+ * para que los consumidores que sólo leen esto (DwellButton, T9Mode, Settings)
+ * no se re-rendericen a 60fps.
+ */
+export interface TrackingState {
   direction: TrackingDirection;
   isBlinking: boolean;
   isIntentionalBlink: boolean; // Triggered when closing eyes for configured duration
@@ -40,6 +48,24 @@ export interface TrackingData {
   isReady: boolean;
   calibration: CalibrationData;
   saveCalibration: (newCalib: CalibrationData) => void;
+  /**
+   * Elemento que está debajo del puntero virtual, resuelto una sola vez por
+   * frame con document.elementFromPoint. Antes cada DwellButton llamaba a
+   * getBoundingClientRect() por frame (~30 reflows sincrónicos por frame en
+   * T9Mode); ahora hay un único hit-test y además respeta el z-order, así que
+   * un botón tapado por el overlay de pausa deja de ser seleccionable.
+   */
+  hoveredElement: Element | null;
+  /**
+   * Valor crudo sin calibrar, expuesto como ref y no como estado: sólo lo
+   * consume la pantalla de Calibración para samplear, y nunca se renderiza.
+   * Como estado forzaba un re-render de toda la app en cada frame.
+   */
+  rawGazeRef: RefObject<CursorPosition>;
+}
+
+export interface TrackingData extends TrackingState {
+  cursor: CursorPosition;
 }
 
 const DEFAULT_CALIBRATION: CalibrationData = {
@@ -62,20 +88,20 @@ const DEFAULT_CALIBRATION: CalibrationData = {
   showFullscreenButton: false, // Hidden by default (requestFullscreen needs a trusted mouse/keyboard event)
 };
 
+const CURSOR_EPSILON = 0.003;
+const MOUSE_OVERRIDE_MS = 2000;
+
 export const useEyeTracking = (): TrackingData => {
   const [landmarker, setLandmarker] = useState<FaceLandmarker | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [cursor, setCursor] = useState({ x: 0.5, y: 0.5 });
-  const [rawGaze, setRawGaze] = useState({ x: 0.5, y: 0.5 });
+  const [cursor, setCursor] = useState<CursorPosition>({ x: 0.5, y: 0.5 });
   const [direction, setDirection] = useState<TrackingDirection>('CENTER');
   const [isBlinking, setIsBlinking] = useState(false);
   const [isIntentionalBlink, setIsIntentionalBlink] = useState(false);
   const [isEyesClosedLong, setIsEyesClosedLong] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [hoveredElement, setHoveredElement] = useState<Element | null>(null);
 
-  const recentBlinksRef = useRef<number[]>([]);
-  const togglePause = useCallback(() => setIsPaused(prev => !prev), []);
-  
   const [calibration, setCalibration] = useState<CalibrationData>(() => {
     const saved = localStorage.getItem('eyes_talk_calibration');
     if (saved) {
@@ -91,26 +117,76 @@ export const useEyeTracking = (): TrackingData => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const animFrameId = useRef<number | null>(null);
   const eyesClosedStartTime = useRef<number | null>(null);
+  const recentBlinksRef = useRef<number[]>([]);
+  const lastMouseTime = useRef<number>(0);
+
+  // Espejo del último valor crudo, para la pantalla de Calibración.
+  const rawGazeRef = useRef<CursorPosition>({ x: 0.5, y: 0.5 });
+  // Cursor suavizado. Se mantiene en un ref para poder calcular el LERP de forma
+  // pura: antes el suavizado vivía dentro del updater de setCursor, que además
+  // llamaba a setDirection ahí adentro (los updaters deben ser puros y bajo
+  // StrictMode se invocan dos veces, así que direction quedaba indeterminado).
+  const cursorRef = useRef<CursorPosition>({ x: 0.5, y: 0.5 });
+
+  // Espejos de estado para el loop de detección. Sin esto el efecto necesitaba
+  // listar isPaused/calibration/isEyesClosedLong en sus deps y se destruía y
+  // recreaba el rAF ante cualquier cambio; y como isPaused faltaba en las deps,
+  // el loop leía un valor obsoleto para siempre (el cursor seguía moviéndose en
+  // modo pausa).
+  const isPausedRef = useRef(isPaused);
+  const calibrationRef = useRef(calibration);
+  const isEyesClosedLongRef = useRef(isEyesClosedLong);
+  const isBlinkingRef = useRef(isBlinking);
+  const directionRef = useRef(direction);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  useEffect(() => {
+    calibrationRef.current = calibration;
+  }, [calibration]);
+
+  const togglePause = useCallback(() => {
+    isPausedRef.current = !isPausedRef.current;
+    setIsPaused(isPausedRef.current);
+  }, []);
 
   const saveCalibration = useCallback((newCalib: CalibrationData) => {
+    // Actualizar el ref en el acto para que el loop tome los ajustes nuevos en
+    // el frame siguiente, sin esperar al commit de React.
+    calibrationRef.current = newCalib;
     setCalibration(newCalib);
     localStorage.setItem('eyes_talk_calibration', JSON.stringify(newCalib));
   }, []);
 
+  // Resuelve qué elemento está bajo el puntero. elementFromPoint devuelve null
+  // fuera del viewport, así que clampeamos al borde.
+  const updateHover = useCallback((nx: number, ny: number) => {
+    const px = Math.min(window.innerWidth - 1, Math.max(0, nx * window.innerWidth));
+    const py = Math.min(window.innerHeight - 1, Math.max(0, ny * window.innerHeight));
+    const el = document.elementFromPoint(px, py);
+    setHoveredElement(prev => (prev === el ? prev : el));
+  }, []);
+
   // Track physical mouse movement to allow mouse override
-  const lastMouseTime = useRef<number>(0);
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       lastMouseTime.current = Date.now();
-      setCursor({
+
+      const next = {
         x: e.clientX / window.innerWidth,
         y: e.clientY / window.innerHeight,
-      });
+      };
+
+      cursorRef.current = next;
+      setCursor(next);
+      updateHover(next.x, next.y);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+  }, [updateHover]);
 
   // Initialize MediaPipe Face Landmarker
   useEffect(() => {
@@ -121,7 +197,7 @@ export const useEyeTracking = (): TrackingData => {
         const filesetResolver = await FilesetResolver.forVisionTasks(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
         );
-        
+
         const faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
           baseOptions: {
             modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
@@ -158,12 +234,12 @@ export const useEyeTracking = (): TrackingData => {
     videoRef.current = video;
     document.body.appendChild(video);
 
-    navigator.mediaDevices.getUserMedia({ 
-      video: { 
-        width: 1280, 
-        height: 720, 
-        facingMode: 'user' 
-      } 
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        width: 1280,
+        height: 720,
+        facingMode: 'user'
+      }
     }).then((stream) => {
       video.srcObject = stream;
       video.onloadedmetadata = () => {
@@ -185,7 +261,9 @@ export const useEyeTracking = (): TrackingData => {
     };
   }, [landmarker]);
 
-  // Main Detection Loop
+  // Main Detection Loop. Deps sólo [isReady, landmarker]: todo lo demás se lee
+  // por ref, así el loop se monta una vez y no se reinicia con cada ajuste ni
+  // con cada flanco del gesto de ojos cerrados.
   useEffect(() => {
     if (!isReady || !landmarker || !videoRef.current) return;
 
@@ -194,19 +272,23 @@ export const useEyeTracking = (): TrackingData => {
     const detectFrame = () => {
       if (video && landmarker && video.currentTime > 0) {
         const results = landmarker.detectForVideo(video, performance.now());
-        
+
         if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
           const shapes = results.faceBlendshapes[0].categories;
-          
+          const calib = calibrationRef.current;
+
           // Find blink values (threshold 0.35 for better sensitivity)
           const leftBlink = shapes.find(s => s.categoryName === 'eyeBlinkLeft')?.score || 0;
           const rightBlink = shapes.find(s => s.categoryName === 'eyeBlinkRight')?.score || 0;
-          
+
           const eyesClosed = leftBlink > 0.35 && rightBlink > 0.35;
-          setIsBlinking(eyesClosed);
+          if (isBlinkingRef.current !== eyesClosed) {
+            isBlinkingRef.current = eyesClosed;
+            setIsBlinking(eyesClosed);
+          }
 
           // Handle eyes closed (Intentional blink within strict [MIN, MAX] window vs 3-second escape)
-          const minBlinkMs = (calibration.blinkDuration || 0.4) * 1000;
+          const minBlinkMs = (calib.blinkDuration || 0.4) * 1000;
           const maxBlinkMs = minBlinkMs + 400; // e.g. 0.4s to 0.8s max window
 
           if (eyesClosed) {
@@ -214,43 +296,54 @@ export const useEyeTracking = (): TrackingData => {
               eyesClosedStartTime.current = Date.now();
             } else {
               const duration = Date.now() - eyesClosedStartTime.current;
-              if (duration >= 3000) {
+              if (duration >= 3000 && !isEyesClosedLongRef.current) {
+                isEyesClosedLongRef.current = true;
                 setIsEyesClosedLong(true);
               }
             }
           } else {
             if (eyesClosedStartTime.current) {
               const duration = Date.now() - eyesClosedStartTime.current;
-              
+
               // Triple-Blink Detection (3 quick blinks within configured window, e.g. 1.5s)
-              if (calibration.enablePauseGesture !== false && duration >= 100 && duration <= 650) {
+              if (calib.enablePauseGesture !== false && duration >= 100 && duration <= 650) {
                 const now = Date.now();
-                const windowMs = (calibration.tripleBlinkWindow || 1.5) * 1000;
+                const windowMs = (calib.tripleBlinkWindow || 1.5) * 1000;
                 recentBlinksRef.current = [...recentBlinksRef.current.filter(t => now - t < windowMs), now];
-                
+
                 if (recentBlinksRef.current.length >= 3) {
                   recentBlinksRef.current = [];
-                  setIsPaused(prev => !prev);
+                  isPausedRef.current = !isPausedRef.current;
+                  setIsPaused(isPausedRef.current);
                   playChime();
                 }
               }
 
-              if (!isPaused && duration >= minBlinkMs && duration <= maxBlinkMs && !isEyesClosedLong) {
+              if (
+                !isPausedRef.current &&
+                duration >= minBlinkMs &&
+                duration <= maxBlinkMs &&
+                !isEyesClosedLongRef.current
+              ) {
                 setIsIntentionalBlink(true);
                 setTimeout(() => setIsIntentionalBlink(false), 50);
               }
             }
+
             eyesClosedStartTime.current = null;
-            setIsEyesClosedLong(false);
+            if (isEyesClosedLongRef.current) {
+              isEyesClosedLongRef.current = false;
+              setIsEyesClosedLong(false);
+            }
           }
 
           // --- Tracking Logic (HEAD vs GAZE) ---
           // Freeze cursor and skip pointer updates when app is paused
-          if (!isPaused && Date.now() - lastMouseTime.current > 2000) {
+          if (!isPausedRef.current && Date.now() - lastMouseTime.current > MOUSE_OVERRIDE_MS) {
             let rawX = 0.5;
             let rawY = 0.5;
 
-            if (calibration.mode === 'HEAD' && results.faceLandmarks && results.faceLandmarks.length > 0) {
+            if (calib.mode === 'HEAD' && results.faceLandmarks && results.faceLandmarks.length > 0) {
               // Head Tracking using Nose Landmark (index 1)
               const nose = results.faceLandmarks[0][1];
               // Mirror X because camera is mirrored
@@ -259,7 +352,7 @@ export const useEyeTracking = (): TrackingData => {
             } else {
               // Gaze Tracking via Eye Blendshapes
               const getShape = (name: string) => shapes.find(s => s.categoryName === name)?.score || 0;
-              
+
               const lookLeft = (getShape('eyeLookOutLeft') + getShape('eyeLookInRight')) / 2;
               const lookRight = (getShape('eyeLookInLeft') + getShape('eyeLookOutRight')) / 2;
               const lookUp = (getShape('eyeLookUpLeft') + getShape('eyeLookUpRight')) / 2;
@@ -269,25 +362,25 @@ export const useEyeTracking = (): TrackingData => {
               rawY = 0.5 - lookUp + lookDown;
             }
 
-            setRawGaze({ x: rawX, y: rawY });
+            rawGazeRef.current = { x: rawX, y: rawY };
 
             // Apply Multi-Point Calibration bounds (minRawX/maxRawX, minRawY/maxRawY)
-            const minX = calibration.minRawX ?? (calibration.centerRawX - 0.2);
-            const maxX = calibration.maxRawX ?? (calibration.centerRawX + 0.2);
-            const minY = calibration.minRawY ?? (calibration.centerRawY - 0.15);
-            const maxY = calibration.maxRawY ?? (calibration.centerRawY + 0.15);
+            const minX = calib.minRawX ?? (calib.centerRawX - 0.2);
+            const maxX = calib.maxRawX ?? (calib.centerRawX + 0.2);
+            const minY = calib.minRawY ?? (calib.centerRawY - 0.15);
+            const maxY = calib.maxRawY ?? (calib.centerRawY + 0.15);
 
             const rangeX = Math.max(0.04, maxX - minX);
             const rangeY = Math.max(0.04, maxY - minY);
 
             // Normalize raw coordinate within calibrated bounding box -> [0, 1]
-            let normX = (rawX - minX) / rangeX;
-            let normY = (rawY - minY) / rangeY;
+            const normX = (rawX - minX) / rangeX;
+            const normY = (rawY - minY) / rangeY;
 
             // Apply sensitivity multiplier centered at 0.5
             const deltaX = normX - 0.5;
             const deltaY = normY - 0.5;
-            const sensFactor = (calibration.sensitivity || 3.5) / 3.5;
+            const sensFactor = (calib.sensitivity || 3.5) / 3.5;
 
             let x = 0.5 + deltaX * sensFactor;
             let y = 0.5 + deltaY * sensFactor;
@@ -297,28 +390,36 @@ export const useEyeTracking = (): TrackingData => {
             y = Math.max(0, Math.min(1, y));
 
             // Smooth interpolation
-            const lerpFactor = calibration.mode === 'HEAD' ? 0.22 : 0.15;
+            const lerpFactor = calib.mode === 'HEAD' ? 0.22 : 0.15;
 
-            setCursor(prev => {
-              const smoothedX = prev.x + (x - prev.x) * lerpFactor;
-              const smoothedY = prev.y + (y - prev.y) * lerpFactor;
-              
+            const prev = cursorRef.current;
+            const smoothedX = prev.x + (x - prev.x) * lerpFactor;
+            const smoothedY = prev.y + (y - prev.y) * lerpFactor;
+
+            const moved =
+              Math.abs(prev.x - smoothedX) > CURSOR_EPSILON ||
+              Math.abs(prev.y - smoothedY) > CURSOR_EPSILON;
+
+            if (moved) {
+              cursorRef.current = { x: smoothedX, y: smoothedY };
+              setCursor(cursorRef.current);
+
               let newDir: TrackingDirection = 'CENTER';
               if (smoothedX < 0.3) newDir = 'LEFT';
               else if (smoothedX > 0.7) newDir = 'RIGHT';
               else if (smoothedY < 0.3) newDir = 'UP';
               else if (smoothedY > 0.7) newDir = 'DOWN';
 
-              setDirection(prevDir => (prevDir !== newDir ? newDir : prevDir));
-
-              const movedX = Math.abs(prev.x - smoothedX) > 0.003;
-              const movedY = Math.abs(prev.y - smoothedY) > 0.003;
-              
-              if (movedX || movedY) {
-                return { x: smoothedX, y: smoothedY };
+              if (directionRef.current !== newDir) {
+                directionRef.current = newDir;
+                setDirection(newDir);
               }
-              return prev;
-            });
+            }
+
+            // Se re-testea siempre, no sólo cuando el cursor se movió: al cambiar
+            // de pantalla el puntero puede quedar quieto sobre un botón recién
+            // montado, y así lo detecta en el frame siguiente.
+            updateHover(cursorRef.current.x, cursorRef.current.y);
           }
         }
       }
@@ -333,11 +434,11 @@ export const useEyeTracking = (): TrackingData => {
         cancelAnimationFrame(animFrameId.current);
       }
     };
-  }, [isReady, landmarker, calibration, isEyesClosedLong]);
+  }, [isReady, landmarker, updateHover]);
 
   return {
     cursor,
-    rawGaze,
+    rawGazeRef,
     direction,
     isBlinking,
     isIntentionalBlink,
@@ -347,5 +448,6 @@ export const useEyeTracking = (): TrackingData => {
     isReady,
     calibration,
     saveCalibration,
+    hoveredElement,
   };
 };

@@ -2,12 +2,11 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { DwellButton } from '../components/DwellButton';
 import { FullscreenToggle } from '../components/FullscreenToggle';
 import { useTTS } from '../hooks/useTTS';
-import { useTrackingContext } from '../context/TrackingContext';
+import { useTracking } from '../context/TrackingContext';
 import { playChime } from '../utils/audio';
 import { getT9Predictions, learnCustomWord } from '../services/t9Predictor';
 import { Delete, Trash2, X, ArrowLeft, Volume2, Pause, Play, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { safeNavigate } from '../utils/navigation';
+import { useAppNavigation } from '../hooks/useAppNavigation';
 import type { T9InputMode } from '../hooks/useEyeTracking';
 
 const MAIN_T9_KEYS = [
@@ -20,8 +19,8 @@ const T9Mode = () => {
   const [text, setText] = useState('');
   const [t9Sequence, setT9Sequence] = useState<string>(''); // For PREDICTIVE 1-tap mode (e.g. "4652")
   const { speak } = useTTS();
-  const { calibration, saveCalibration } = useTrackingContext();
-  const navigate = useNavigate();
+  const { calibration, saveCalibration } = useTracking();
+  const { goHome } = useAppNavigation();
   const textDisplayRef = useRef<HTMLDivElement>(null);
 
   const t9InputMode: T9InputMode = calibration.t9InputMode || 'PREDICTIVE';
@@ -286,7 +285,7 @@ const T9Mode = () => {
         {/* Integrated Back Button */}
         <DwellButton 
           disabled={isButtonsDisabled} 
-          onClick={() => safeNavigate(navigate, '/')} 
+          onClick={goHome} 
           style={{ 
             flex: '1.2', 
             borderRadius: 0,

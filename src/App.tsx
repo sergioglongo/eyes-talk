@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { TrackingProvider, useTrackingContext } from './context/TrackingContext';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { TrackingProvider, useTracking, useCursor } from './context/TrackingContext';
 import Home from './pages/Home';
 import LookMode from './pages/LookMode';
 import T9Mode from './pages/T9Mode';
@@ -8,29 +8,27 @@ import Settings from './pages/Settings';
 import Calibration from './pages/Calibration';
 import { ArrowLeft } from 'lucide-react';
 import { DwellButton } from './components/DwellButton';
-import { playChime } from './utils/audio';
-import { safeNavigate } from './utils/navigation';
+import { useAppNavigation } from './hooks/useAppNavigation';
+import { ROUTES, CALIBRATION_ALIAS } from './utils/routes';
 
 // Global escape listener component
 const GlobalEscapeHandler = () => {
-  const navigate = useNavigate();
-  const { isEyesClosedLong } = useTrackingContext();
+  const { goHome } = useAppNavigation();
+  const { isEyesClosedLong } = useTracking();
 
   useEffect(() => {
-    if (isEyesClosedLong) {
-      playChime();
-      safeNavigate(navigate, '/');
-    }
-  }, [isEyesClosedLong, navigate]);
+    if (isEyesClosedLong) goHome();
+  }, [isEyesClosedLong, goHome]);
 
   return null;
 };
 
 // Global UI Overlays (Cursor and Back Button)
 const GlobalUI = () => {
-  const { cursor, isPaused, togglePause } = useTrackingContext();
+  const { isPaused, togglePause } = useTracking();
+  const cursor = useCursor();
   const location = useLocation();
-  const navigate = useNavigate();
+  const { goHome } = useAppNavigation();
 
   return (
     <>
@@ -92,9 +90,9 @@ const GlobalUI = () => {
       )}
 
       {/* Floating Back Button */}
-      {location.pathname !== '/' && location.pathname !== '/look' && location.pathname !== '/t9' && location.pathname !== '/settings' && location.pathname !== '/calibration' && location.pathname !== '/calibrate' && (
-        <DwellButton 
-          onClick={() => safeNavigate(navigate, '/')}
+      {location.pathname !== ROUTES.HOME && location.pathname !== ROUTES.LOOK && location.pathname !== ROUTES.T9 && location.pathname !== ROUTES.SETTINGS && location.pathname !== ROUTES.CALIBRATION && location.pathname !== CALIBRATION_ALIAS && (
+        <DwellButton
+          onClick={goHome}
           dwellTime={1500}
           style={{
             position: 'absolute',
@@ -112,7 +110,7 @@ const GlobalUI = () => {
       )}
 
       {/* Visual Cursor Dot (completely hidden when paused or in calibration) */}
-      {location.pathname !== '/calibration' && location.pathname !== '/calibrate' && !isPaused && (
+      {location.pathname !== ROUTES.CALIBRATION && location.pathname !== CALIBRATION_ALIAS && !isPaused && (
         <div 
           style={{
             position: 'fixed',
@@ -141,12 +139,12 @@ function App() {
         <GlobalEscapeHandler />
         <GlobalUI />
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/look" element={<LookMode />} />
-          <Route path="/t9" element={<T9Mode />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/calibration" element={<Calibration />} />
-          <Route path="/calibrate" element={<Calibration />} />
+          <Route path={ROUTES.HOME} element={<Home />} />
+          <Route path={ROUTES.LOOK} element={<LookMode />} />
+          <Route path={ROUTES.T9} element={<T9Mode />} />
+          <Route path={ROUTES.SETTINGS} element={<Settings />} />
+          <Route path={ROUTES.CALIBRATION} element={<Calibration />} />
+          <Route path={CALIBRATION_ALIAS} element={<Calibration />} />
         </Routes>
       </div>
     </TrackingProvider>

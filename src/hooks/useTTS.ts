@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTrackingContext } from '../context/TrackingContext';
+import { useTracking } from '../context/TrackingContext';
 
 export const useTTS = () => {
-  const { calibration } = useTrackingContext();
+  const { calibration } = useTracking();
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   const loadVoices = useCallback(() => {

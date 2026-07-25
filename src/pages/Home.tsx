@@ -1,52 +1,51 @@
 import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTrackingContext } from '../context/TrackingContext';
+import { useTracking, useCursor } from '../context/TrackingContext';
 import { Settings as SettingsIcon, Eye, Keyboard } from 'lucide-react';
-import { playChime } from '../utils/audio';
-import { safeNavigate } from '../utils/navigation';
 import { DwellButton } from '../components/DwellButton';
 import { FullscreenToggle } from '../components/FullscreenToggle';
+import { useAppNavigation } from '../hooks/useAppNavigation';
+import { ROUTES } from '../utils/routes';
+
+const MOUNT_GRACE_MS = 600;
 
 const Home = () => {
-  const navigate = useNavigate();
-  const { cursor, direction, isReady, isIntentionalBlink, calibration } = useTrackingContext();
+  const { go } = useAppNavigation();
+  const { direction, isReady, isIntentionalBlink, calibration } = useTracking();
+  const cursor = useCursor();
   const mountTimeRef = useRef<number>(Date.now());
 
   const allowBlink = calibration.selectionMethod !== 'DWELL';
 
-  // Spatial & Zone Selection via Intentional Blink or Head Tilt
+  // Selección por zona espacial. Estas zonas se solapan con los DwellButton que
+  // las cubren, así que un mismo parpadeo dispara los dos caminos; el cooldown
+  // global de useAppNavigation colapsa el segundo. Antes cada parpadeo generaba
+  // dos pushState y dos entradas en el historial.
   useEffect(() => {
-    // Ignore blinks during the first 600ms of page mount to prevent blink bleed from previous page
-    if (Date.now() - mountTimeRef.current < 600) return;
+    if (Date.now() - mountTimeRef.current < MOUNT_GRACE_MS) return;
+    if (!allowBlink || !isIntentionalBlink) return;
 
-    if (allowBlink && isIntentionalBlink) {
-      // Zone 3: Bottom Dock -> Configuración
-      // When the Fullscreen button is visible it shares the right half of the
-      // dock, so this shortcut must only fire on the left half. When it's
-      // hidden, Configuración spans the full dock width.
-      if (cursor.y >= 0.85) {
-        if (!calibration.showFullscreenButton || cursor.x < 0.5) {
-          playChime();
-          safeNavigate(navigate, '/settings');
-        }
-        return;
+    // Zone 3: Bottom Dock -> Configuración
+    // When the Fullscreen button is visible it shares the right half of the
+    // dock, so this shortcut must only fire on the left half. When it's
+    // hidden, Configuración spans the full dock width.
+    if (cursor.y >= 0.85) {
+      if (!calibration.showFullscreenButton || cursor.x < 0.5) {
+        go(ROUTES.SETTINGS);
       }
-
-      // Zone 1: Left Half (x < 50% or spatial LEFT) -> Modo Mirada
-      if (cursor.x < 0.5 || direction === 'LEFT') {
-        playChime();
-        safeNavigate(navigate, '/look');
-        return;
-      }
-
-      // Zone 2: Right Half (x >= 50% or spatial RIGHT) -> Modo T9
-      if (cursor.x >= 0.5 || direction === 'RIGHT') {
-        playChime();
-        safeNavigate(navigate, '/t9');
-        return;
-      }
+      return;
     }
-  }, [isIntentionalBlink, cursor, direction, allowBlink, navigate, calibration.showFullscreenButton]);
+
+    // Zone 1: Left Half (x < 50% or spatial LEFT) -> Modo Mirada
+    if (cursor.x < 0.5 || direction === 'LEFT') {
+      go(ROUTES.LOOK);
+      return;
+    }
+
+    // Zone 2: Right Half (x >= 50% or spatial RIGHT) -> Modo T9
+    if (cursor.x >= 0.5 || direction === 'RIGHT') {
+      go(ROUTES.T9);
+    }
+  }, [isIntentionalBlink, cursor, direction, allowBlink, go, calibration.showFullscreenButton]);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', gap: '0.5rem', padding: '0.5rem 0.5rem 0 0.5rem' }}>
@@ -56,7 +55,7 @@ const Home = () => {
 
         {/* Left Card - Modo Look */}
         <DwellButton
-          onClick={() => safeNavigate(navigate, '/look')}
+          onClick={() => go(ROUTES.LOOK)}
           hoverScale={1.015}
           style={{
             flex: 1,
@@ -81,7 +80,7 @@ const Home = () => {
 
         {/* Right Card - Modo T9 */}
         <DwellButton
-          onClick={() => safeNavigate(navigate, '/t9')}
+          onClick={() => go(ROUTES.T9)}
           hoverScale={1.015}
           style={{
             flex: 1,
@@ -109,7 +108,7 @@ const Home = () => {
       {/* Bottom Section Dock - Configuración (+ Pantalla Completa si está habilitado) */}
       <div style={{ display: 'flex', width: '100%', gap: '0.5rem', minHeight: '110px' }}>
         <DwellButton
-          onClick={() => safeNavigate(navigate, '/settings')}
+          onClick={() => go(ROUTES.SETTINGS)}
           hoverScale={1.015}
           style={{
             flex: calibration.showFullscreenButton ? '0 1 calc(50% - 0.25rem)' : 1,

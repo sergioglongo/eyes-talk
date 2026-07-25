@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTrackingContext } from '../context/TrackingContext';
+import { useTracking } from '../context/TrackingContext';
 import { playChime } from '../utils/audio';
 import { CheckCircle2, ArrowLeft, Target, Play, RotateCcw } from 'lucide-react';
 import { DwellButton } from '../components/DwellButton';
+import { useAppNavigation } from '../hooks/useAppNavigation';
+import { ROUTES } from '../utils/routes';
 
 interface CalibrationPoint {
   id: string;
@@ -21,8 +22,8 @@ const CALIBRATION_POINTS: CalibrationPoint[] = [
 ];
 
 const Calibration = () => {
-  const navigate = useNavigate();
-  const { rawGaze, calibration, saveCalibration } = useTrackingContext();
+  const { go, goHome } = useAppNavigation();
+  const { rawGazeRef, calibration, saveCalibration } = useTracking();
 
   const [step, setStep] = useState<'IDLE' | 'COUNTDOWN' | 'SAMPLING' | 'DONE'>('IDLE');
   const [pointIndex, setPointIndex] = useState(0);
@@ -31,11 +32,6 @@ const Calibration = () => {
 
   // Store raw samples per calibration point
   const pointSamplesRef = useRef<Record<string, { x: number; y: number }[]>>({});
-  const rawGazeRef = useRef(rawGaze);
-
-  useEffect(() => {
-    rawGazeRef.current = rawGaze;
-  }, [rawGaze]);
 
   const startCalibration = () => {
     pointSamplesRef.current = {};
@@ -70,10 +66,10 @@ const Calibration = () => {
       const INTERVAL = 40;
 
       const intervalId = window.setInterval(() => {
-        pointSamplesRef.current[currentPoint.id].push({
-          x: rawGazeRef.current.x,
-          y: rawGazeRef.current.y
-        });
+        // Se lee del ref en cada tick para tomar el valor crudo más reciente sin
+        // que el tracking tenga que publicarlo como estado (y re-renderizar).
+        const { x, y } = rawGazeRef.current;
+        pointSamplesRef.current[currentPoint.id].push({ x, y });
 
         setProgress(prev => {
           const next = prev + (INTERVAL / DURATION) * 100;
@@ -87,7 +83,7 @@ const Calibration = () => {
 
       return () => clearInterval(intervalId);
     }
-  }, [step, pointIndex]);
+  }, [step, pointIndex, rawGazeRef]);
 
   // Handle completion of current point
   useEffect(() => {
@@ -156,7 +152,7 @@ const Calibration = () => {
       {/* Top Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', background: 'var(--bg-secondary)', borderBottom: '2px solid var(--bg-tertiary)', zIndex: 500 }}>
         <DwellButton 
-          onClick={() => navigate('/')}
+          onClick={goHome}
           style={{ background: 'var(--bg-tertiary)', border: 'none', padding: '0.6rem 1.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold' }}
         >
           <ArrowLeft size={24} /> Volver
@@ -281,7 +277,7 @@ const Calibration = () => {
 
             <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center' }}>
               <DwellButton 
-                onClick={() => navigate('/t9')}
+                onClick={() => go(ROUTES.T9)}
                 style={{ padding: '1.2rem 2.5rem', background: 'var(--accent-primary)', border: 'none', fontSize: '1.3rem', fontWeight: 'bold', borderRadius: 'var(--radius-md)' }}
               >
                 🚀 Ir a Escribir (T9)
